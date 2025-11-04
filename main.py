@@ -3,9 +3,6 @@ import requests
 from flask_cors import CORS
 import os
 
-# ==============================================================
-# 🌐 Configuração inicial
-# ==============================================================
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -31,87 +28,101 @@ headers = {
 }
 
 # ==============================================================
-# 📅 1️⃣ Endpoint: Jogos do dia
+# 🔁 Função auxiliar para chamar a API-Football
+# ==============================================================
+def call_api_football(path: str, params: dict):
+    url = f"https://{API_HOST}{path}"
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=15)
+
+        # Log básico no Render (aparece nos logs)
+        print(f"[API-FOOTBALL] {url} -> {resp.status_code}")
+
+        # Tenta parsear JSON; se não der, retorna texto cru
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {"raw": resp.text}
+
+        if resp.ok:
+            return jsonify({"ok": True, "status_code": resp.status_code, "data": data}), resp.status_code
+        else:
+            # Erro vindo da API externa
+            return (
+                jsonify({
+                    "ok": False,
+                    "status_code": resp.status_code,
+                    "error": "Erro ao chamar API-Football",
+                    "details": data
+                }),
+                resp.status_code
+            )
+
+    except requests.exceptions.RequestException as e:
+        # Erro de rede / timeout / etc
+        print(f"[API-FOOTBALL][ERROR] {e}")
+        return (
+            jsonify({
+                "ok": False,
+                "status_code": 500,
+                "error": "Exceção ao chamar API-Football",
+                "details": str(e)
+            }),
+            500
+        )
+
+# ==============================================================
+# 📅 1️⃣ Jogos do dia (fixtures)
 # ==============================================================
 @app.route("/fixtures", methods=["GET"])
 def fixtures():
     date = request.args.get("date")
     league = request.args.get("league")
-    url = f"https://{API_HOST}/v3/fixtures?date={date}&league={league}"
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    params = {"date": date, "league": league}
+    return call_api_football("/v3/fixtures", params)
 
 # ==============================================================
-# 🏆 2️⃣ Endpoint: Classificação do campeonato
+# 🏆 2️⃣ Classificação do campeonato
 # ==============================================================
 @app.route("/standings", methods=["GET"])
 def standings():
     league = request.args.get("league")
     season = request.args.get("season")
-    url = f"https://{API_HOST}/v3/standings?league={league}&season={season}"
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    params = {"league": league, "season": season}
+    return call_api_football("/v3/standings", params)
 
 # ==============================================================
-# 💰 3️⃣ Endpoint: Odds e probabilidades
+# 💰 3️⃣ Odds e probabilidades
 # ==============================================================
 @app.route("/odds", methods=["GET"])
 def odds():
     fixture = request.args.get("fixture")
-    url = f"https://{API_HOST}/v3/odds?fixture={fixture}"
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    params = {"fixture": fixture}
+    return call_api_football("/v3/odds", params)
 
 # ==============================================================
-# 📊 4️⃣ Endpoint: Estatísticas de um time
+# 📊 4️⃣ Estatísticas de um time
 # ==============================================================
 @app.route("/team_stats", methods=["GET"])
 def team_stats():
     team = request.args.get("team")
     league = request.args.get("league")
     season = request.args.get("season")
-    url = f"https://{API_HOST}/v3/teams/statistics?team={team}&league={league}&season={season}"
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    params = {"team": team, "league": league, "season": season}
+    return call_api_football("/v3/teams/statistics", params)
 
 # ==============================================================
-# ⚽ 5️⃣ Endpoint: Artilheiros do campeonato
+# ⚽ 5️⃣ Artilheiros do campeonato
 # ==============================================================
 @app.route("/topscorers", methods=["GET"])
 def topscorers():
     league = request.args.get("league")
     season = request.args.get("season")
-    url = f"https://{API_HOST}/v3/players/topscorers?league={league}&season={season}"
-
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return jsonify(response.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    params = {"league": league, "season": season}
+    return call_api_football("/v3/players/topscorers", params)
 
 # ==============================================================
-# 🏠 Endpoint inicial (status)
+# 🏠 Home
 # ==============================================================
 @app.route("/", methods=["GET"])
 def home():
@@ -127,8 +138,5 @@ def home():
         }
     })
 
-# ==============================================================
-# 🚀 Execução principal
-# ==============================================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
