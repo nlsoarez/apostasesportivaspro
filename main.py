@@ -3,10 +3,22 @@ import requests
 from flask_cors import CORS
 import os
 
+# ==============================================================
+# 🌐 Configuração inicial
+# ==============================================================
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# 🔒 Lendo variáveis de ambiente
+@app.after_request
+def after_request(response):
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
+    return response
+
+# ==============================================================
+# 🔒 Variáveis de ambiente (Render)
+# ==============================================================
 API_KEY = os.getenv("API_KEY")
 API_HOST = os.getenv("API_HOST")
 
@@ -18,41 +30,9 @@ headers = {
     "x-rapidapi-host": API_HOST
 }
 
-# ============================================================
-# 🧠 Tradutor local simples EN → PT-BR
-# ============================================================
-def traduzir(texto):
-    if not texto:
-        return texto
-    traducoes = {
-        "stadium": "estádio",
-        "arena": "arena",
-        "city": "cidade",
-        "team": "time",
-        "home": "casa",
-        "away": "fora",
-        "match": "partida",
-        "round": "rodada",
-        "win": "vitória",
-        "draw": "empate",
-        "lose": "derrota"
-    }
-    for en, pt in traducoes.items():
-        texto = texto.replace(en.capitalize(), pt.capitalize()).replace(en, pt)
-    return texto
-
-def traduzir_objeto(dado):
-    if isinstance(dado, dict):
-        return {k: traduzir_objeto(v) for k, v in dado.items()}
-    elif isinstance(dado, list):
-        return [traduzir_objeto(i) for i in dado]
-    elif isinstance(dado, str):
-        return traduzir(dado)
-    return dado
-
-# ============================================================
-# 📅 Jogos do dia
-# ============================================================
+# ==============================================================
+# 📅 1️⃣ Endpoint: Jogos do dia
+# ==============================================================
 @app.route("/fixtures", methods=["GET"])
 def fixtures():
     date = request.args.get("date")
@@ -62,14 +42,13 @@ def fixtures():
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        data = response.json()
-        return jsonify(traduzir_objeto(data))
+        return jsonify(response.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ============================================================
-# 🏆 Classificação
-# ============================================================
+# ==============================================================
+# 🏆 2️⃣ Endpoint: Classificação do campeonato
+# ==============================================================
 @app.route("/standings", methods=["GET"])
 def standings():
     league = request.args.get("league")
@@ -79,14 +58,13 @@ def standings():
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        data = response.json()
-        return jsonify(traduzir_objeto(data))
+        return jsonify(response.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ============================================================
-# 💰 Odds
-# ============================================================
+# ==============================================================
+# 💰 3️⃣ Endpoint: Odds e probabilidades
+# ==============================================================
 @app.route("/odds", methods=["GET"])
 def odds():
     fixture = request.args.get("fixture")
@@ -95,14 +73,13 @@ def odds():
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        data = response.json()
-        return jsonify(traduzir_objeto(data))
+        return jsonify(response.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ============================================================
-# 📊 Estatísticas do time
-# ============================================================
+# ==============================================================
+# 📊 4️⃣ Endpoint: Estatísticas de um time
+# ==============================================================
 @app.route("/team_stats", methods=["GET"])
 def team_stats():
     team = request.args.get("team")
@@ -113,14 +90,13 @@ def team_stats():
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        data = response.json()
-        return jsonify(traduzir_objeto(data))
+        return jsonify(response.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ============================================================
-# ⚽ Artilheiros
-# ============================================================
+# ==============================================================
+# ⚽ 5️⃣ Endpoint: Artilheiros do campeonato
+# ==============================================================
 @app.route("/topscorers", methods=["GET"])
 def topscorers():
     league = request.args.get("league")
@@ -130,27 +106,29 @@ def topscorers():
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        data = response.json()
-        return jsonify(traduzir_objeto(data))
+        return jsonify(response.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ============================================================
-# 🏠 Rota inicial
-# ============================================================
+# ==============================================================
+# 🏠 Endpoint inicial (status)
+# ==============================================================
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
-        "status": "✅ API Apostas Futebol Pro ativa!",
-        "mensagem": "Tradução automática ativada (EN → PT-BR)",
+        "status": "✅ API Apostas Futebol Pro ativa e operacional!",
+        "mensagem": "Use os endpoints abaixo para acessar dados reais de futebol:",
         "endpoints": {
             "/fixtures": "Partidas por data e liga",
-            "/standings": "Classificação atual",
-            "/odds": "Odds e probabilidades",
-            "/team_stats": "Estatísticas do time",
-            "/topscorers": "Artilheiros"
+            "/standings": "Classificação atual do campeonato",
+            "/odds": "Probabilidades e odds por jogo",
+            "/team_stats": "Estatísticas de um time específico",
+            "/topscorers": "Artilheiros do campeonato"
         }
     })
 
+# ==============================================================
+# 🚀 Execução principal
+# ==============================================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
