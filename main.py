@@ -1,20 +1,18 @@
 from flask import Flask, request, jsonify
-import requests
 from flask_cors import CORS
+import requests
 import os
+from backup_scraper import (
+    get_fixtures_backup,
+    get_standings_backup,
+    get_topscorers_backup
+)
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
-
-@app.after_request
-def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE,OPTIONS")
-    return response
+CORS(app)
 
 # ==============================================================
-# 🔒 Variáveis de ambiente (Render)
+# 🔐 VARIÁVEIS DE AMBIENTE (Render)
 # ==============================================================
 API_KEY = os.getenv("API_KEY")
 API_HOST = os.getenv("API_HOST")
@@ -28,115 +26,110 @@ headers = {
 }
 
 # ==============================================================
-# 🔁 Função auxiliar para chamar a API-Football
+# 🔁 Função genérica com fallback automático
 # ==============================================================
-def call_api_football(path: str, params: dict):
+def call_api_football(path, params):
     url = f"https://{API_HOST}{path}"
     try:
         resp = requests.get(url, headers=headers, params=params, timeout=15)
 
-        # Log básico no Render (aparece nos logs)
-        print(f"[API-FOOTBALL] {url} -> {resp.status_code}")
-
-        # Tenta parsear JSON; se não der, retorna texto cru
-        try:
-            data = resp.json()
-        except ValueError:
-            data = {"raw": resp.text}
-
+        # ✅ API funcionando normalmente
         if resp.ok:
-            return jsonify({"ok": True, "status_code": resp.status_code, "data": data}), resp.status_code
-        else:
-            # Erro vindo da API externa
-            return (
-                jsonify({
-                    "ok": False,
-                    "status_code": resp.status_code,
-                    "error": "Erro ao chamar API-Football",
-                    "details": data
-                }),
-                resp.status_code
-            )
+            return jsonify(resp.json())
 
-    except requests.exceptions.RequestException as e:
-        # Erro de rede / timeout / etc
-        print(f"[API-FOOTBALL][ERROR] {e}")
-        return (
-            jsonify({
-                "ok": False,
-                "status_code": 500,
-                "error": "Exceção ao chamar API-Football",
-                "details": str(e)
-            }),
-            500
-        )
+        # ⚠️ Se a API retornar erro, ativar o backup
+        print(f"⚠️ API-Football erro {resp.status_code}, ativando fallback...")
+        return jsonify(fallback_handler(path))
+
+    except Exception as e:
+        print(f"🚨 Falha geral na API-Football: {e}")
+        return jsonify(fallback_handler(path))
+
 
 # ==============================================================
-# 📅 1️⃣ Jogos do dia (fixtures)
+# 🧩 Função de fallback automático
+# ==============================================================
+def fallback_handler(path):
+    if "/fixtures" in path:
+        return get_fixtures_backup()
+    elif "/standings" in path:
+        return get_standings_backup()
+    elif "/players/topscorers" in path:
+        return get_topscorers_backup()
+    else:
+        return {"erro": "Fonte alternativa não disponível para este endpoint."}
+
+
+# ==============================================================
+# 📅 1️⃣ Jogos do dia
 # ==============================================================
 @app.route("/fixtures", methods=["GET"])
 def fixtures():
     date = request.args.get("date")
     league = request.args.get("league")
-    params = {"date": date, "league": league}
-    return call_api_football("/v3/fixtures", params)
+    return call_api_football("/v3/fixtures", {"date": date, "league": league})
+
 
 # ==============================================================
-# 🏆 2️⃣ Classificação do campeonato
+# 🏆 2️⃣ Classificação
 # ==============================================================
 @app.route("/standings", methods=["GET"])
 def standings():
     league = request.args.get("league")
     season = request.args.get("season")
-    params = {"league": league, "season": season}
-    return call_api_football("/v3/standings", params)
+    return call_api_football("/v3/standings", {"league": league, "season": season})
+
 
 # ==============================================================
-# 💰 3️⃣ Odds e probabilidades
+# 💰 3️⃣ Odds (mantém apenas na API oficial)
 # ==============================================================
 @app.route("/odds", methods=["GET"])
 def odds():
     fixture = request.args.get("fixture")
-    params = {"fixture": fixture}
-    return call_api_football("/v3/odds", params)
+    return call_api_football("/v3/odds", {"fixture": fixture})
+
 
 # ==============================================================
-# 📊 4️⃣ Estatísticas de um time
+# 📊 4️⃣ Estatísticas do time
 # ==============================================================
 @app.route("/team_stats", methods=["GET"])
 def team_stats():
     team = request.args.get("team")
     league = request.args.get("league")
     season = request.args.get("season")
-    params = {"team": team, "league": league, "season": season}
-    return call_api_football("/v3/teams/statistics", params)
+    return call_api_football("/v3/teams/statistics", {"team": team, "league": league, "season": season})
+
 
 # ==============================================================
-# ⚽ 5️⃣ Artilheiros do campeonato
+# ⚽ 5️⃣ Artilheiros
 # ==============================================================
 @app.route("/topscorers", methods=["GET"])
 def topscorers():
     league = request.args.get("league")
     season = request.args.get("season")
-    params = {"league": league, "season": season}
-    return call_api_football("/v3/players/topscorers", params)
+    return call_api_football("/v3/players/topscorers", {"league": league, "season": season})
+
 
 # ==============================================================
-# 🏠 Home
+# 🏠 6️⃣ Rota inicial
 # ==============================================================
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
-        "status": "✅ API Apostas Futebol Pro ativa e operacional!",
-        "mensagem": "Use os endpoints abaixo para acessar dados reais de futebol:",
+        "status": "✅ API Apostas Futebol Pro ativa!",
+        "mensagem": "Endpoints disponíveis:",
         "endpoints": {
-            "/fixtures": "Partidas por data e liga",
-            "/standings": "Classificação atual do campeonato",
-            "/odds": "Probabilidades e odds por jogo",
-            "/team_stats": "Estatísticas de um time específico",
+            "/fixtures": "Jogos por data e liga",
+            "/standings": "Classificação do campeonato",
+            "/odds": "Odds e probabilidades",
+            "/team_stats": "Estatísticas de um time",
             "/topscorers": "Artilheiros do campeonato"
         }
     })
 
+
+# ==============================================================
+# 🚀 Inicialização
+# ==============================================================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
