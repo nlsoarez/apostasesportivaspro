@@ -371,7 +371,7 @@ Este projeto está licenciado sob a Licença MIT - veja o arquivo [LICENSE](LICE
 
 - **Issues**: [GitHub Issues](https://github.com/seu-usuario/gpt-apostas-futebol-pro/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/seu-usuario/gpt-apostas-futebol-pro/discussions)
-- **Email**: suporte@seudominio.com
+- **Email**: nlsoarez@gmail.com
 
 ## 🙏 Agradecimentos
 
