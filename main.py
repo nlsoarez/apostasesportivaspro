@@ -2,7 +2,8 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import requests
-from bs4 import BeautifulSoup
+import json
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -19,76 +20,46 @@ headers_api = {
     "x-rapidapi-host": API_HOST
 }
 
+print(f"🔑 API Key configurada: {bool(API_KEY)}")
+print(f"🌐 API Host: {API_HOST}")
+
+# ============================================================
+# 🔧 Função auxiliar para chamar a API
+# ============================================================
 
 def call_api_football(path, params):
     """
-    Tenta chamar a API-Football.
-    Retorna (json, erro) — se json != None, deu certo; se None, veja erro.
+    Chama a API-Football e retorna os dados
+    Retorna (json, erro) — se json != None, deu certo
     """
     if not API_KEY:
         return None, "API_KEY não configurada nas variáveis de ambiente."
 
     url = f"https://{API_HOST}{path}"
+    
     try:
+        print(f"📡 Chamando API: {path} com params: {params}")
         resp = requests.get(url, headers=headers_api, params=params, timeout=12)
+        
         if resp.status_code == 200:
             return resp.json(), None
-        return None, f"Status {resp.status_code} da API-Football: {resp.text[:200]}"
+            
+        error_msg = f"Status {resp.status_code} da API-Football"
+        print(f"❌ Erro: {error_msg}")
+        return None, error_msg
+        
     except Exception as e:
-        return None, f"Exceção ao chamar API-Football: {e}"
-
-
-# ============================================================
-# 🔁 Backup genérico via web scraping (EXEMPLO)
-# ============================================================
-
-def backup_fixtures_from_web(date: str, league: str):
-    """
-    Exemplo de backup: busca jogos em um site público de resultados.
-    ➜ Você PRECISA ajustar:
-      - a URL
-      - os seletores CSS
-    """
-    try:
-        # TODO: troque essa URL por um site/rota real que liste jogos por data
-        url = f"https://example.com/fixtures?date={date}&league={league}"
-
-        resp = requests.get(url, timeout=12)
-        if resp.status_code != 200:
-            return None, f"Backup HTTP {resp.status_code} ao acessar {url}"
-
-        html = resp.text
-        soup = BeautifulSoup(html, "html.parser")
-
-        jogos = []
-        # TODO: ajuste esse seletor e os sub-seletores conforme o site escolhido
-        for item in soup.select(".fixture-item"):
-            home = item.select_one(".team-home").get_text(strip=True)
-            away = item.select_one(".team-away").get_text(strip=True)
-            hora = item.select_one(".kickoff-time").get_text(strip=True)
-
-            jogos.append({
-                "home": home,
-                "away": away,
-                "time": hora
-            })
-
-        if not jogos:
-            return None, "Backup não encontrou jogos (ver seletores/HTML)."
-
-        return {"fixtures": jogos}, None
-
-    except Exception as e:
-        return None, f"Erro no backup web: {e}"
-
+        error_msg = f"Exceção ao chamar API-Football: {e}"
+        print(f"❌ Erro: {error_msg}")
+        return None, error_msg
 
 # ============================================================
-# 📅 Endpoint 1 – Fixtures (com backup)
+# 📅 Endpoint 1 – Fixtures (Jogos)
 # ============================================================
 
 @app.route("/fixtures", methods=["GET"])
 def fixtures():
-    date = request.args.get("date")   # ex: 2025-11-05
+    date = request.args.get("date")      # ex: 2025-11-05
     league = request.args.get("league")  # ex: 71
 
     if not date or not league:
@@ -98,8 +69,6 @@ def fixtures():
         }), 400
 
     params = {"date": date, "league": league}
-
-    # 1️⃣ Tenta API-Football
     data_api, error_api = call_api_football("/v3/fixtures", params)
 
     if data_api is not None:
@@ -109,28 +78,14 @@ def fixtures():
             "data": data_api
         })
 
-    # 2️⃣ Se falhou, tenta backup web
-    data_backup, error_backup = backup_fixtures_from_web(date, league)
-
-    if data_backup is not None:
-        return jsonify({
-            "ok": True,
-            "source": "backup-web",
-            "warning": error_api,
-            "data": data_backup
-        })
-
-    # 3️⃣ Se nada funcionou, devolve erro
+    # Se falhou, retorna erro
     return jsonify({
         "ok": False,
-        "error": "Nenhuma fonte conseguiu retornar dados.",
-        "api_error": error_api,
-        "backup_error": error_backup
+        "error": error_api
     }), 502
 
-
 # ============================================================
-# 🏆 Classificação – só API-Football (sem backup por enquanto)
+# 🏆 Endpoint 2 – Standings (Classificação)
 # ============================================================
 
 @app.route("/standings", methods=["GET"])
@@ -148,32 +103,42 @@ def standings():
     data_api, error_api = call_api_football("/v3/standings", params)
 
     if data_api is not None:
-        return jsonify({"ok": True, "source": "api-football", "data": data_api})
+        return jsonify({
+            "ok": True,
+            "source": "api-football",
+            "data": data_api
+        })
 
     return jsonify({"ok": False, "error": error_api}), 502
 
-
 # ============================================================
-# 💰 Odds – só API-Football
+# 💰 Endpoint 3 – Odds (Probabilidades)
 # ============================================================
 
 @app.route("/odds", methods=["GET"])
 def odds():
     fixture = request.args.get("fixture")
+    
     if not fixture:
-        return jsonify({"ok": False, "error": "Parâmetro 'fixture' é obrigatório."}), 400
+        return jsonify({
+            "ok": False,
+            "error": "Parâmetro 'fixture' é obrigatório."
+        }), 400
 
     params = {"fixture": fixture}
     data_api, error_api = call_api_football("/v3/odds", params)
 
     if data_api is not None:
-        return jsonify({"ok": True, "source": "api-football", "data": data_api})
+        return jsonify({
+            "ok": True,
+            "source": "api-football",
+            "data": data_api
+        })
 
     return jsonify({"ok": False, "error": error_api}), 502
 
-
 # ============================================================
-# 📊 Estatísticas de time – só API-Football
+# 📊 Endpoint 4 – Team Stats (Estatísticas)
 # ============================================================
 
 @app.route("/team_stats", methods=["GET"])
@@ -192,13 +157,16 @@ def team_stats():
     data_api, error_api = call_api_football("/v3/teams/statistics", params)
 
     if data_api is not None:
-        return jsonify({"ok": True, "source": "api-football", "data": data_api})
+        return jsonify({
+            "ok": True,
+            "source": "api-football",
+            "data": data_api
+        })
 
     return jsonify({"ok": False, "error": error_api}), 502
 
-
 # ============================================================
-# ⚽ Artilheiros – só API-Football
+# ⚽ Endpoint 5 – Top Scorers (Artilheiros)
 # ============================================================
 
 @app.route("/topscorers", methods=["GET"])
@@ -216,34 +184,108 @@ def topscorers():
     data_api, error_api = call_api_football("/v3/players/topscorers", params)
 
     if data_api is not None:
-        return jsonify({"ok": True, "source": "api-football", "data": data_api})
+        return jsonify({
+            "ok": True,
+            "source": "api-football",
+            "data": data_api
+        })
 
     return jsonify({"ok": False, "error": error_api}), 502
 
+# ============================================================
+# 📈 Health Check (para monitoramento)
+# ============================================================
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Verifica se a API está funcionando"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "api_configured": bool(API_KEY),
+        "version": "1.0.0"
+    })
 
 # ============================================================
-# 🌐 Página com o widget (front-end)
-# ============================================================
-
-@app.route("/app", methods=["GET"])
-def app_page():
-    # serve o index.html que está na raiz do projeto
-    return send_from_directory(".", "index.html")
-
-
-# ============================================================
-# 🏠 Rota inicial – info da API
+# 🏠 Rota inicial – informações da API
 # ============================================================
 
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
-        "status": "✅ API Apostas Esportivas Pro ativa",
-        "mensagem": "Use /fixtures, /standings, /odds, /team_stats, /topscorers ou abra /app para o painel com widgets.",
-        "has_api_key": bool(API_KEY),
-        "api_host": API_HOST,
+        "nome": "🏆 API Apostas Futebol Pro",
+        "versao": "1.0.0",
+        "status": "✅ Online",
+        "mensagem": "Use os endpoints abaixo para buscar dados de futebol",
+        "endpoints": {
+            "/fixtures": "Buscar jogos - Params: date=YYYY-MM-DD, league=ID",
+            "/standings": "Classificação - Params: league=ID, season=YYYY",
+            "/odds": "Probabilidades - Params: fixture=ID",
+            "/team_stats": "Estatísticas - Params: team=ID, league=ID, season=YYYY",
+            "/topscorers": "Artilheiros - Params: league=ID, season=YYYY",
+            "/health": "Status da API"
+        },
+        "codigos_principais": {
+            "brasil": {
+                "71": "Brasileirão Série A",
+                "72": "Brasileirão Série B",
+                "73": "Copa do Brasil"
+            },
+            "europa": {
+                "39": "Premier League",
+                "140": "La Liga",
+                "135": "Serie A",
+                "78": "Bundesliga",
+                "61": "Ligue 1",
+                "2": "Champions League"
+            },
+            "americas": {
+                "13": "Libertadores",
+                "11": "Copa Sul-Americana"
+            }
+        },
+        "exemplos": {
+            "jogos_hoje": f"/fixtures?date={datetime.now().strftime('%Y-%m-%d')}&league=71",
+            "classificacao": "/standings?league=71&season=2025",
+            "artilheiros": "/topscorers?league=71&season=2025"
+        },
+        "documentacao": "https://www.api-football.com/documentation-v3",
+        "api_key_configurada": bool(API_KEY)
     })
 
+# ============================================================
+# 🎛️ Tratamento de Erros
+# ============================================================
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({
+        "ok": False,
+        "error": "Endpoint não encontrado. Acesse / para ver os endpoints disponíveis."
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({
+        "ok": False,
+        "error": "Erro interno do servidor."
+    }), 500
+
+# ============================================================
+# ▶️ Iniciar servidor
+# ============================================================
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    port = int(os.getenv("PORT", 8080))
+    debug = os.getenv("FLASK_ENV") == "development"
+    
+    print("=" * 50)
+    print("🚀 API APOSTAS FUTEBOL PRO")
+    print("=" * 50)
+    print(f"📍 Porta: {port}")
+    print(f"🔧 Debug: {debug}")
+    print(f"🔑 API Key: {'✅ Configurada' if API_KEY else '❌ NÃO CONFIGURADA'}")
+    print(f"🌐 Acesse: http://localhost:{port}")
+    print("=" * 50)
+    
+    app.run(host="0.0.0.0", port=port, debug=debug)
