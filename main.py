@@ -13,15 +13,15 @@ CORS(app)
 # ============================================================
 
 # Sua chave API do dashboard.api-football.com
-API_KEY = os.getenv("API_KEY", "f9daf39ee008d2b8997c5081f1e78275")
-API_HOST = "v3.football.api-sports.io"  # Host correto da API-Sports
+API_KEY = os.getenv("API_KEY")
+API_HOST = os.getenv("API_HOST", "v3.football.api-sports.io")
 
 # Headers corretos para API-Sports
 headers_api = {
-    "x-apisports-key": API_KEY  # Note: é x-apisports-key, não x-rapidapi-key
+    "x-apisports-key": API_KEY
 }
 
-print(f"🔑 API Key configurada: {API_KEY[:10]}...")
+print(f"🔑 API Key configurada: {'✅' if API_KEY else '❌ NÃO CONFIGURADA'}")
 print(f"🌐 API Host: {API_HOST}")
 
 # ============================================================
@@ -31,7 +31,9 @@ print(f"🌐 API Host: {API_HOST}")
 def call_api_football(endpoint, params):
     """Chama a API-Football e retorna os dados"""
     
-    # URL correta da API-Sports
+    if not API_KEY:
+        return None, "API_KEY não configurada. Configure a variável de ambiente."
+    
     url = f"https://{API_HOST}{endpoint}"
     
     try:
@@ -75,7 +77,7 @@ def call_api_football(endpoint, params):
 def fixtures():
     """
     Busca jogos por data e liga
-    Exemplo: /fixtures?date=2024-11-06&league=71
+    Exemplo: /fixtures?date=2025-11-06&league=71
     """
     date = request.args.get("date")
     league = request.args.get("league")
@@ -87,7 +89,7 @@ def fixtures():
         return jsonify({
             "ok": False,
             "error": "Parâmetros obrigatórios: date (YYYY-MM-DD) e league (ID)",
-            "exemplo": "/fixtures?date=2024-11-06&league=71"
+            "exemplo": "/fixtures?date=2025-11-06&league=71"
         }), 400
     
     # Endpoint correto
@@ -252,11 +254,11 @@ def teams():
 # ⚽ Endpoint: Artilheiros
 # ============================================================
 
-@app.route("/topscorers", methods=["GET"])
+@app.route("/players/topscorers", methods=["GET"])
 def topscorers():
     """
     Busca artilheiros do campeonato
-    Exemplo: /topscorers?league=71&season=2024
+    Exemplo: /players/topscorers?league=71&season=2024
     """
     league = request.args.get("league")
     season = request.args.get("season", "2024")
@@ -265,7 +267,7 @@ def topscorers():
         return jsonify({
             "ok": False,
             "error": "Parâmetro obrigatório: league (ID)",
-            "exemplo": "/topscorers?league=71&season=2024"
+            "exemplo": "/players/topscorers?league=71&season=2024"
         }), 400
     
     data, error = call_api_football("/players/topscorers", {
@@ -370,10 +372,9 @@ def health():
     # Testa a API fazendo uma chamada simples
     test_result = "unknown"
     try:
-        # Chama endpoint de status da API
         response = requests.get(
             f"https://{API_HOST}/status",
-            headers=headers_api,
+            headers=headers_api if API_KEY else {},
             timeout=5
         )
         if response.status_code == 200:
@@ -386,10 +387,11 @@ def health():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "api_key": API_KEY[:10] + "..." if API_KEY else "not_configured",
+        "api_key_configured": bool(API_KEY),
         "api_host": API_HOST,
         "api_connection": test_result,
-        "version": "2.1.0"
+        "version": "2.1.0",
+        "platform": "vercel"
     })
 
 # ============================================================
@@ -404,8 +406,9 @@ def home():
         "🏆": "API Apostas Esportivas Pro",
         "status": "✅ Online",
         "version": "2.1.0",
+        "platform": "Vercel",
         "api_sports": {
-            "key": API_KEY[:10] + "..." if API_KEY else "não configurada",
+            "key": "✅ Configurada" if API_KEY else "❌ NÃO configurada",
             "host": API_HOST,
             "dashboard": "https://dashboard.api-football.com"
         },
@@ -432,9 +435,9 @@ def home():
                 "exemplo": "/teams/statistics?team=121&league=71&season=2024"
             },
             "artilheiros": {
-                "url": "/topscorers",
+                "url": "/players/topscorers",
                 "params": "league (ID), season (YYYY)",
-                "exemplo": "/topscorers?league=71&season=2024"
+                "exemplo": "/players/topscorers?league=71&season=2024"
             },
             "health": {
                 "url": "/health",
@@ -491,17 +494,10 @@ def home():
             "jogos_hoje_brasileirao": f"/fixtures?date={hoje}&league=71&season=2024",
             "tabela_brasileirao": "/standings?league=71&season=2024",
             "times_brasileirao": "/teams?league=71&season=2024",
-            "artilheiros_brasileirao": "/topscorers?league=71&season=2024",
+            "artilheiros_brasileirao": "/players/topscorers?league=71&season=2024",
             "estatisticas_palmeiras": "/teams/statistics?team=121&league=71&season=2024",
             "jogos_champions": f"/fixtures?date={hoje}&league=2&season=2024",
             "tabela_premier": "/standings?league=39&season=2024"
-        },
-        
-        "links": {
-            "github": "https://github.com/nlsoarez/apostasesportivaspro",
-            "api_online": "https://apostasesportivaspro.onrender.com",
-            "documentacao_api": "https://www.api-football.com/documentation-v3",
-            "dashboard": "https://dashboard.api-football.com"
         },
         
         "instrucoes": "Use os endpoints acima para buscar dados. Todos retornam JSON.",
@@ -529,6 +525,14 @@ def internal_error(error):
     }), 500
 
 # ============================================================
+# 🔧 Configuração para Vercel
+# ============================================================
+
+# Adicionar middleware para Vercel
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# ============================================================
 # ▶️ Inicialização
 # ============================================================
 
@@ -539,11 +543,11 @@ if __name__ == "__main__":
     print("🚀 API APOSTAS ESPORTIVAS PRO - v2.1")
     print("=" * 60)
     print(f"📍 Porta: {port}")
-    print(f"🔑 API Key: {API_KEY[:10]}..." if API_KEY else "❌ Não configurada")
+    print(f"🔑 API Key: {'✅ Configurada' if API_KEY else '❌ NÃO configurada'}")
     print(f"🌐 Host: {API_HOST}")
     print(f"📊 Dashboard: https://dashboard.api-football.com")
     print(f"💻 Local: http://localhost:{port}")
-    print(f"☁️  Render: https://apostasesportivaspro.onrender.com")
+    print(f"☁️  Vercel: Pronto para deploy")
     print("=" * 60)
     print("📝 Acesse / para ver a documentação completa")
     print("=" * 60)
