@@ -1,0 +1,16 @@
+# ============================================
+# CONFIGURAÇÕES DA API
+# ============================================
+
+# OBRIGATÓRIO - Sua chave da API do RapidAPI
+# Pegue em: https://rapidapi.com/api-sports/api/api-football
+API_KEY=sua_chave_aqui
+
+# Host da API (não precisa mudar)
+API_HOST=api-football-v1.p.rapidapi.com
+
+# Porta do servidor (padrão 8080)
+PORT=8080
+
+# Ambiente (development ou production)
+FLASK_ENV=production
