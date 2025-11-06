@@ -13,3 +13,108 @@
     }
   ]
 }
+```
+
+4. Clique em **"Commit changes..."**
+
+---
+
+### 2.3 Criar requirements.txt
+
+1. Clique em **"Add file"** → **"Create new file"**
+2. Nome: `requirements.txt`
+3. Cole:
+```
+Flask==3.0.3
+flask-cors==4.0.0
+requests==2.32.3
+gunicorn==22.0.0
+python-dotenv==1.0.0
+werkzeug==3.0.1
+```
+
+4. Clique em **"Commit changes..."**
+
+---
+
+✅ **PRONTO!** Seu repositório agora tem todos os arquivos necessários!
+
+---
+
+## 📋 PASSO 3: CONECTAR VERCEL AO GITHUB
+
+### 3.1 Acessar Vercel
+Vá em: **https://vercel.com**
+
+### 3.2 Fazer Login
+- Clique em **"Sign Up"** ou **"Login"**
+- Escolha **"Continue with GitHub"** 🌟
+- Autorize o Vercel
+
+### 3.3 Importar Projeto
+
+1. No Vercel Dashboard, clique em **"Add New..."** → **"Project"**
+
+2. Você verá seus repositórios GitHub
+
+3. Encontre **"apostas-futebol-api"**
+
+4. Clique em **"Import"**
+
+---
+
+## 📋 PASSO 4: CONFIGURAR DEPLOY
+
+### 4.1 Configurações do Projeto
+
+**Project Name:** (deixe como está)
+```
+apostas-futebol-api
+```
+
+**Framework Preset:**
+```
+Other
+```
+
+**Root Directory:**
+```
+./
+```
+
+### 4.2 Environment Variables ⚠️ **IMPORTANTE!**
+
+Role até **"Environment Variables"** e adicione:
+
+1. **Primeira variável:**
+   - Name: `API_KEY`
+   - Value: `[SUA CHAVE DA API-SPORTS AQUI]`
+   - Marque: Production, Preview, Development
+
+2. **Segunda variável:**
+   - Name: `FLASK_ENV`
+   - Value: `production`
+   - Marque: Production, Preview, Development
+
+3. **Terceira variável:**
+   - Name: `API_HOST`
+   - Value: `v3.football.api-sports.io`
+   - Marque: Production, Preview, Development
+
+### 4.3 Deploy! 🚀
+
+Clique no botão **"Deploy"**
+
+Aguarde 1-2 minutos... ⏳
+
+---
+
+## 📋 PASSO 5: PEGAR SUA URL
+
+Quando terminar:
+
+1. Você verá: **"Congratulations! 🎉"**
+
+2. Sua URL será algo como:
+```
+https://apostas-futebol-api.vercel.app
