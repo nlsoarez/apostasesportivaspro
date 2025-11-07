@@ -1,11 +1,13 @@
 """
-MAIN.PY MELHORADO - Versão 3.0
-Novos endpoints adicionados:
-- Head to Head (H2H)
-- Injuries (Lesões)
-- Odds ao vivo
-- Predictions (Previsões da API)
-- Transfers (Transferências)
+APOSTAS FUTEBOL PRO - API Backend v3.1 FINAL
+Código completo com todas as correções dos tutoriais API-Football
+
+Novidades v3.1:
+- Parâmetro STATUS para fixtures
+- Parâmetro TIMEZONE para fixtures
+- Validação de league_name
+- Mensagens de erro melhoradas
+- Todos os novos endpoints (H2H, injuries, odds, predictions, live)
 """
 
 from flask import Flask, request, jsonify
@@ -26,7 +28,8 @@ headers_api = {
     "x-apisports-key": API_KEY
 }
 
-print(f"🔑 API Key: {'✅' if API_KEY else '❌ NÃO CONFIGURADA'}")
+print(f"🔑 API Key: {'✅ Configurada' if API_KEY else '❌ NÃO CONFIGURADA'}")
+print(f"🌐 API Host: {API_HOST}")
 
 def call_api_football(endpoint, params):
     """Chama a API-Football e retorna os dados"""
@@ -36,73 +39,133 @@ def call_api_football(endpoint, params):
     url = f"https://{API_HOST}{endpoint}"
     
     try:
-        print(f"📡 Chamando: {endpoint}")
+        print(f"📡 Chamando: {endpoint} com params: {params}")
         response = requests.get(url, headers=headers_api, params=params, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
+            
+            # Verificar se há erros na resposta
             if data.get("errors") and len(data["errors"]) > 0:
                 return None, str(data["errors"])
+            
             return data, None
         else:
-            return None, f"Erro {response.status_code}"
+            return None, f"Erro HTTP {response.status_code}"
+            
+    except requests.exceptions.Timeout:
+        return None, "Timeout na requisição"
     except Exception as e:
         return None, str(e)
 
 # ============================================================
-# ENDPOINTS EXISTENTES (mantidos)
+# HEALTH CHECK
 # ============================================================
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Health check"""
+    """Health check com informações detalhadas"""
     test_result = "unknown"
+    api_info = {}
+    
     try:
         response = requests.get(
             f"https://{API_HOST}/status",
             headers=headers_api if API_KEY else {},
             timeout=5
         )
-        test_result = "connected" if response.status_code == 200 else "error"
-    except:
-        test_result = "timeout"
+        
+        if response.status_code == 200:
+            data = response.json()
+            test_result = "connected"
+            api_info = data.get("response", {})
+        else:
+            test_result = f"error_{response.status_code}"
+            
+    except Exception as e:
+        test_result = f"error: {str(e)}"
     
     return jsonify({
         "status": "healthy",
+        "version": "3.1.0",
         "timestamp": datetime.now().isoformat(),
         "api_key_configured": bool(API_KEY),
         "api_host": API_HOST,
         "api_connection": test_result,
-        "version": "3.0.0"
+        "api_info": api_info,
+        "changelog": "v3.1: Adicionado status e timezone em fixtures, validações melhoradas"
     })
+
+# ============================================================
+# FIXTURES - CORRIGIDO COM STATUS E TIMEZONE
+# ============================================================
 
 @app.route("/fixtures", methods=["GET"])
 def fixtures():
-    """Busca jogos por data e liga"""
+    """
+    Busca jogos por data e liga
+    
+    NOVOS PARÂMETROS v3.1:
+    - status: FT, NS, LIVE, PST, CANC (opcional)
+    - timezone: ex: America/Sao_Paulo (padrão: UTC)
+    """
     date = request.args.get("date")
     league = request.args.get("league")
     season = request.args.get("season", "2024")
+    status = request.args.get("status")  # 🆕 NOVO
+    timezone = request.args.get("timezone")  # 🆕 NOVO
     
+    # Validação
     if not date or not league:
         return jsonify({
             "ok": False,
-            "error": "Parâmetros obrigatórios: date e league"
+            "error": "Parâmetros obrigatórios: date (YYYY-MM-DD) e league"
         }), 400
     
-    data, error = call_api_football("/fixtures", {
+    # Montar params
+    params = {
         "date": date,
         "league": league,
         "season": season
-    })
+    }
+    
+    # 🆕 Adicionar status se fornecido
+    if status:
+        params["status"] = status
+    
+    # 🆕 Adicionar timezone se fornecido (padrão Brasil)
+    if timezone:
+        params["timezone"] = timezone
+    else:
+        params["timezone"] = "America/Sao_Paulo"
+    
+    data, error = call_api_football("/fixtures", params)
     
     if data:
-        fixtures = data.get("response", [])
+        fixtures_list = data.get("response", [])
+        
+        # 🆕 Validar se não há jogos
+        if len(fixtures_list) == 0:
+            return jsonify({
+                "ok": True,
+                "total": 0,
+                "jogos": [],
+                "mensagem": "Nenhum jogo encontrado para estes parâmetros",
+                "sugestao": "Verifique se a data, liga e season estão corretos. Pode não haver jogos nesta data."
+            })
+        
         jogos = []
-        for fixture in fixtures:
-            jogos.append({
+        
+        for fixture in fixtures_list:
+            # 🆕 Validar league_name
+            league_name = fixture.get("league", {}).get("name", "")
+            
+            jogo = {
                 "id": fixture["fixture"]["id"],
                 "data": fixture["fixture"]["date"],
-                "status": fixture["fixture"]["status"]["long"],
+                "status": fixture["fixture"]["status"]["short"],
+                "status_long": fixture["fixture"]["status"]["long"],
+                "liga": league_name,  # 🆕 Incluir nome da liga
                 "time_casa": {
                     "id": fixture["teams"]["home"]["id"],
                     "nome": fixture["teams"]["home"]["name"],
@@ -114,20 +177,34 @@ def fixtures():
                     "logo": fixture["teams"]["away"]["logo"]
                 },
                 "gols": fixture["goals"]
-            })
+            }
+            
+            jogos.append(jogo)
         
-        return jsonify({"ok": True, "total": len(jogos), "jogos": jogos})
+        return jsonify({
+            "ok": True,
+            "total": len(jogos),
+            "jogos": jogos,
+            "parametros_usados": params
+        })
     
     return jsonify({"ok": False, "error": error}), 500
 
+# ============================================================
+# STANDINGS
+# ============================================================
+
 @app.route("/standings", methods=["GET"])
 def standings():
-    """Busca classificação"""
+    """Busca classificação do campeonato"""
     league = request.args.get("league")
     season = request.args.get("season", "2024")
     
     if not league:
-        return jsonify({"ok": False, "error": "league obrigatório"}), 400
+        return jsonify({
+            "ok": False,
+            "error": "Parâmetro obrigatório: league"
+        }), 400
     
     data, error = call_api_football("/standings", {
         "league": league,
@@ -136,40 +213,56 @@ def standings():
     
     if data:
         response = data.get("response", [])
-        if response:
-            standings = response[0].get("league", {}).get("standings", [[]])[0]
-            tabela = []
-            for team in standings:
-                tabela.append({
-                    "posicao": team["rank"],
-                    "time": team["team"]["name"],
-                    "pontos": team["points"],
-                    "jogos": team["all"]["played"],
-                    "vitorias": team["all"]["win"],
-                    "empates": team["all"]["draw"],
-                    "derrotas": team["all"]["lose"],
-                    "gols_pro": team["all"]["goals"]["for"],
-                    "gols_contra": team["all"]["goals"]["against"],
-                    "saldo": team["goalsDiff"],
-                    "forma": team.get("form", "")
-                })
-            
+        
+        if not response:
             return jsonify({
-                "ok": True,
-                "tabela": tabela,
-                "liga": response[0]["league"]["name"]
+                "ok": False,
+                "error": "Nenhuma classificação encontrada para esta liga/season"
+            }), 404
+        
+        standings = response[0].get("league", {}).get("standings", [[]])[0]
+        tabela = []
+        
+        for team in standings:
+            tabela.append({
+                "posicao": team["rank"],
+                "time": team["team"]["name"],
+                "time_id": team["team"]["id"],
+                "pontos": team["points"],
+                "jogos": team["all"]["played"],
+                "vitorias": team["all"]["win"],
+                "empates": team["all"]["draw"],
+                "derrotas": team["all"]["lose"],
+                "gols_pro": team["all"]["goals"]["for"],
+                "gols_contra": team["all"]["goals"]["against"],
+                "saldo": team["goalsDiff"],
+                "forma": team.get("form", "")
             })
+        
+        return jsonify({
+            "ok": True,
+            "liga": response[0]["league"]["name"],
+            "temporada": response[0]["league"]["season"],
+            "tabela": tabela
+        })
     
     return jsonify({"ok": False, "error": error}), 500
 
+# ============================================================
+# TEAMS
+# ============================================================
+
 @app.route("/teams", methods=["GET"])
 def teams():
-    """Busca times"""
+    """Busca times de uma liga"""
     league = request.args.get("league")
     season = request.args.get("season", "2024")
     
     if not league:
-        return jsonify({"ok": False, "error": "league obrigatório"}), 400
+        return jsonify({
+            "ok": False,
+            "error": "Parâmetro obrigatório: league"
+        }), 400
     
     data, error = call_api_football("/teams", {
         "league": league,
@@ -179,28 +272,44 @@ def teams():
     if data:
         teams_list = data.get("response", [])
         times = []
+        
         for item in teams_list:
             team = item.get("team", {})
+            venue = item.get("venue", {})
+            
             times.append({
                 "id": team.get("id"),
                 "nome": team.get("name"),
+                "codigo": team.get("code"),
                 "logo": team.get("logo"),
-                "estadio": item.get("venue", {}).get("name")
+                "estadio": venue.get("name"),
+                "cidade": venue.get("city")
             })
         
-        return jsonify({"ok": True, "total": len(times), "times": times})
+        return jsonify({
+            "ok": True,
+            "total": len(times),
+            "times": times
+        })
     
     return jsonify({"ok": False, "error": error}), 500
 
+# ============================================================
+# TEAM STATISTICS
+# ============================================================
+
 @app.route("/teams/statistics", methods=["GET"])
 def team_stats():
-    """Busca estatísticas"""
+    """Busca estatísticas detalhadas de um time"""
     team = request.args.get("team")
     league = request.args.get("league")
     season = request.args.get("season", "2024")
     
     if not team or not league:
-        return jsonify({"ok": False, "error": "team e league obrigatórios"}), 400
+        return jsonify({
+            "ok": False,
+            "error": "Parâmetros obrigatórios: team e league"
+        }), 400
     
     data, error = call_api_football("/teams/statistics", {
         "team": team,
@@ -210,25 +319,46 @@ def team_stats():
     
     if data:
         response = data.get("response", {})
-        if response:
-            stats = {
-                "time": response.get("team", {}).get("name"),
-                "forma": response.get("form"),
-                "jogos": response.get("fixtures", {}),
-                "gols": response.get("goals", {})
-            }
-            return jsonify({"ok": True, "estatisticas": stats})
+        
+        if not response:
+            return jsonify({
+                "ok": False,
+                "error": "Estatísticas não disponíveis para este time/liga/season"
+            }), 404
+        
+        stats = {
+            "time": response.get("team", {}).get("name"),
+            "liga": response.get("league", {}).get("name"),
+            "forma": response.get("form"),
+            "jogos": response.get("fixtures", {}),
+            "gols": response.get("goals", {}),
+            "maior_sequencia": response.get("biggest", {}),
+            "cartoes": response.get("cards", {}),
+            "penaltis": response.get("penalty", {})
+        }
+        
+        return jsonify({
+            "ok": True,
+            "estatisticas": stats
+        })
     
     return jsonify({"ok": False, "error": error}), 500
 
+# ============================================================
+# TOP SCORERS
+# ============================================================
+
 @app.route("/players/topscorers", methods=["GET"])
 def topscorers():
-    """Busca artilheiros"""
+    """Busca artilheiros da liga"""
     league = request.args.get("league")
     season = request.args.get("season", "2024")
     
     if not league:
-        return jsonify({"ok": False, "error": "league obrigatório"}), 400
+        return jsonify({
+            "ok": False,
+            "error": "Parâmetro obrigatório: league"
+        }), 400
     
     data, error = call_api_football("/players/topscorers", {
         "league": league,
@@ -236,38 +366,45 @@ def topscorers():
     })
     
     if data:
-        scorers = data.get("response", [])[:20]
+        scorers = data.get("response", [])[:20]  # Top 20
         artilheiros = []
+        
         for item in scorers:
             player = item.get("player", {})
             stats = item.get("statistics", [{}])[0]
+            
             artilheiros.append({
                 "posicao": len(artilheiros) + 1,
                 "jogador": player.get("name"),
                 "time": stats.get("team", {}).get("name"),
-                "gols": stats.get("goals", {}).get("total", 0)
+                "gols": stats.get("goals", {}).get("total", 0),
+                "jogos": stats.get("games", {}).get("appearences", 0)
             })
         
-        return jsonify({"ok": True, "artilheiros": artilheiros})
+        return jsonify({
+            "ok": True,
+            "total": len(artilheiros),
+            "artilheiros": artilheiros
+        })
     
     return jsonify({"ok": False, "error": error}), 500
 
 # ============================================================
-# 🆕 NOVOS ENDPOINTS
+# 🆕 HEAD TO HEAD (H2H)
 # ============================================================
 
 @app.route("/fixtures/headtohead", methods=["GET"])
 def headtohead():
     """
-    🆕 Confronto direto entre dois times
-    Exemplo: /fixtures/headtohead?h2h=127-121
+    Confronto direto entre dois times
+    Parâmetro: h2h (ex: 127-121 para Flamengo vs Palmeiras)
     """
-    h2h = request.args.get("h2h")  # Format: team1_id-team2_id
+    h2h = request.args.get("h2h")
     
     if not h2h:
         return jsonify({
             "ok": False,
-            "error": "Parâmetro h2h obrigatório (ex: 127-121)"
+            "error": "Parâmetro obrigatório: h2h no formato team1_id-team2_id (ex: 127-121)"
         }), 400
     
     data, error = call_api_football("/fixtures/headtohead", {"h2h": h2h})
@@ -278,13 +415,17 @@ def headtohead():
         
         for match in matches[:10]:  # Últimos 10 jogos
             historico.append({
+                "id": match["fixture"]["id"],
                 "data": match["fixture"]["date"],
+                "liga": match["league"]["name"],
                 "time_casa": match["teams"]["home"]["name"],
                 "time_fora": match["teams"]["away"]["name"],
                 "placar_casa": match["goals"]["home"],
                 "placar_fora": match["goals"]["away"],
-                "vencedor": match["teams"]["home"]["winner"] if match["teams"]["home"]["winner"] else (
-                    "empate" if match["goals"]["home"] == match["goals"]["away"] else match["teams"]["away"]["name"]
+                "vencedor": (
+                    match["teams"]["home"]["name"] if match["teams"]["home"]["winner"]
+                    else match["teams"]["away"]["name"] if match["teams"]["away"]["winner"]
+                    else "Empate"
                 )
             })
         
@@ -296,11 +437,15 @@ def headtohead():
     
     return jsonify({"ok": False, "error": error}), 500
 
+# ============================================================
+# 🆕 INJURIES
+# ============================================================
+
 @app.route("/injuries", methods=["GET"])
 def injuries():
     """
-    🆕 Lesões e suspensões de um time
-    Exemplo: /injuries?league=71&season=2024&team=127
+    Lesões e suspensões de um time
+    Parâmetros: league, team, season
     """
     league = request.args.get("league")
     season = request.args.get("season", "2024")
@@ -309,7 +454,7 @@ def injuries():
     if not league or not team:
         return jsonify({
             "ok": False,
-            "error": "league e team obrigatórios"
+            "error": "Parâmetros obrigatórios: league e team"
         }), 400
     
     data, error = call_api_football("/injuries", {
@@ -327,7 +472,7 @@ def injuries():
                 "jogador": injury["player"]["name"],
                 "tipo": injury["player"]["type"],
                 "motivo": injury["player"]["reason"],
-                "data": injury["fixture"]["date"]
+                "data": injury["fixture"]["date"] if injury.get("fixture") else None
             })
         
         return jsonify({
@@ -336,25 +481,27 @@ def injuries():
             "lesoes": lesoes
         })
     
-    return jsonify({"ok": False, "error": error}), 500
+    return jsonify({"ok": False, "error": error or "Nenhuma lesão reportada"}), 200
+
+# ============================================================
+# 🆕 ODDS
+# ============================================================
 
 @app.route("/odds", methods=["GET"])
 def odds():
     """
-    🆕 Odds de um jogo específico
-    Exemplo: /odds?fixture=12345
+    Odds de um jogo específico
+    Parâmetro: fixture (id do jogo)
     """
     fixture = request.args.get("fixture")
     
     if not fixture:
         return jsonify({
             "ok": False,
-            "error": "fixture id obrigatório"
+            "error": "Parâmetro obrigatório: fixture (id do jogo)"
         }), 400
     
-    data, error = call_api_football("/odds", {
-        "fixture": fixture
-    })
+    data, error = call_api_football("/odds", {"fixture": fixture})
     
     if data:
         odds_data = data.get("response", [])
@@ -363,7 +510,7 @@ def odds():
             bookmakers = odds_data[0].get("bookmakers", [])
             odds_1x2 = None
             
-            # Pegar odds do primeiro bookmaker
+            # Pegar odds do primeiro bookmaker disponível
             for bookmaker in bookmakers:
                 for bet in bookmaker.get("bets", []):
                     if bet.get("name") == "Match Winner":
@@ -372,6 +519,7 @@ def odds():
                             "empate": None,
                             "fora": None
                         }
+                        
                         for value in bet.get("values", []):
                             if value["value"] == "Home":
                                 odds_1x2["casa"] = float(value["odd"])
@@ -380,6 +528,7 @@ def odds():
                             elif value["value"] == "Away":
                                 odds_1x2["fora"] = float(value["odd"])
                         break
+                        
                 if odds_1x2:
                     break
             
@@ -388,26 +537,33 @@ def odds():
                 "odds": odds_1x2,
                 "bookmaker": bookmakers[0]["name"] if bookmakers else None
             })
+        
+        return jsonify({
+            "ok": False,
+            "error": "Odds não disponíveis para este jogo"
+        }), 404
     
-    return jsonify({"ok": False, "error": error or "Odds não disponíveis"}), 500
+    return jsonify({"ok": False, "error": error}), 500
+
+# ============================================================
+# 🆕 PREDICTIONS
+# ============================================================
 
 @app.route("/predictions", methods=["GET"])
 def predictions():
     """
-    🆕 Previsões da API-Sports (usa IA deles)
-    Exemplo: /predictions?fixture=12345
+    Previsões da API-Sports (IA)
+    Parâmetro: fixture (id do jogo)
     """
     fixture = request.args.get("fixture")
     
     if not fixture:
         return jsonify({
             "ok": False,
-            "error": "fixture id obrigatório"
+            "error": "Parâmetro obrigatório: fixture (id do jogo)"
         }), 400
     
-    data, error = call_api_football("/predictions", {
-        "fixture": fixture
-    })
+    data, error = call_api_football("/predictions", {"fixture": fixture})
     
     if data:
         response = data.get("response", [])
@@ -421,19 +577,28 @@ def predictions():
                 "previsao": {
                     "vencedor": predictions_data.get("winner", {}),
                     "placar": predictions_data.get("goals", {}),
-                    "percentual_vitoria": predictions_data.get("percent", {}),
-                    "conselhos": predictions_data.get("advice", "")
+                    "percentual": predictions_data.get("percent", {}),
+                    "conselho": predictions_data.get("advice", "")
                 },
                 "comparacao": pred.get("comparison", {})
             })
+        
+        return jsonify({
+            "ok": False,
+            "error": "Previsões não disponíveis para este jogo"
+        }), 404
     
     return jsonify({"ok": False, "error": error}), 500
+
+# ============================================================
+# 🆕 LIVE FIXTURES
+# ============================================================
 
 @app.route("/fixtures/live", methods=["GET"])
 def live_fixtures():
     """
-    🆕 Jogos ao vivo agora
-    Exemplo: /fixtures/live
+    Jogos ao vivo agora
+    Sem parâmetros necessários
     """
     data, error = call_api_football("/fixtures", {"live": "all"})
     
@@ -456,68 +621,100 @@ def live_fixtures():
         return jsonify({
             "ok": True,
             "total": len(jogos_ao_vivo),
-            "jogos_ao_vivo": jogos_ao_vivo
+            "jogos_ao_vivo": jogos_ao_vivo,
+            "timestamp": datetime.now().isoformat()
         })
     
     return jsonify({"ok": False, "error": error}), 500
 
 # ============================================================
-# HOME
+# HOME / DOCUMENTATION
 # ============================================================
 
 @app.route("/", methods=["GET"])
 def home():
+    """Homepage com documentação"""
     hoje = datetime.now().strftime('%Y-%m-%d')
     
     return jsonify({
         "status": "✅ Online",
-        "version": "3.0.0",
-        "novos_endpoints": {
-            "headtohead": {
-                "url": "/fixtures/headtohead",
-                "params": "h2h (ex: 127-121)",
-                "exemplo": "/fixtures/headtohead?h2h=127-121"
+        "version": "3.1.0",
+        "changelog": {
+            "v3.1": [
+                "Adicionado parâmetro 'status' em /fixtures",
+                "Adicionado parâmetro 'timezone' em /fixtures",
+                "Validação de league_name nas respostas",
+                "Mensagens de erro melhoradas",
+                "Tratamento para jogos não encontrados"
+            ],
+            "v3.0": [
+                "Adicionado /fixtures/headtohead (H2H)",
+                "Adicionado /injuries",
+                "Adicionado /odds",
+                "Adicionado /predictions",
+                "Adicionado /fixtures/live"
+            ]
+        },
+        "endpoints": {
+            "basicos": {
+                "health": "/health",
+                "fixtures": f"/fixtures?date={hoje}&league=71&season=2024&status=FT&timezone=America/Sao_Paulo",
+                "standings": "/standings?league=71&season=2024",
+                "teams": "/teams?league=71&season=2024",
+                "statistics": "/teams/statistics?team=127&league=71&season=2024",
+                "topscorers": "/players/topscorers?league=71&season=2024"
             },
-            "injuries": {
-                "url": "/injuries",
-                "params": "league, team, season",
-                "exemplo": "/injuries?league=71&team=127&season=2024"
-            },
-            "odds": {
-                "url": "/odds",
-                "params": "fixture (id do jogo)",
-                "exemplo": "/odds?fixture=12345"
-            },
-            "predictions": {
-                "url": "/predictions",
-                "params": "fixture (id do jogo)",
-                "exemplo": "/predictions?fixture=12345"
-            },
-            "live": {
-                "url": "/fixtures/live",
-                "params": "nenhum",
-                "exemplo": "/fixtures/live"
+            "avancados_v3": {
+                "headtohead": "/fixtures/headtohead?h2h=127-121",
+                "injuries": "/injuries?league=71&team=127&season=2024",
+                "odds": "/odds?fixture=12345",
+                "predictions": "/predictions?fixture=12345",
+                "live": "/fixtures/live"
             }
         },
-        "endpoints_existentes": {
-            "jogos": f"/fixtures?date={hoje}&league=71&season=2024",
-            "classificacao": "/standings?league=71&season=2024",
-            "times": "/teams?league=71&season=2024",
-            "estatisticas": "/teams/statistics?team=121&league=71&season=2024",
-            "artilheiros": "/players/topscorers?league=71&season=2024",
-            "health": "/health"
+        "status_fixtures": {
+            "FT": "Finalizado",
+            "NS": "Não começou (agendado)",
+            "LIVE": "Ao vivo",
+            "PST": "Adiado",
+            "CANC": "Cancelado",
+            "TBD": "A definir"
+        },
+        "ligas_principais": {
+            "71": "Brasileirão Série A",
+            "72": "Brasileirão Série B",
+            "73": "Copa do Brasil",
+            "39": "Premier League",
+            "140": "La Liga",
+            "135": "Serie A",
+            "78": "Bundesliga",
+            "2": "Champions League"
         }
     })
 
+# ============================================================
+# ERROR HANDLERS
+# ============================================================
+
 @app.errorhandler(404)
 def not_found(error):
-    return jsonify({"ok": False, "error": "Endpoint não encontrado"}), 404
+    return jsonify({
+        "ok": False,
+        "error": "Endpoint não encontrado",
+        "dica": "Acesse / para ver todos os endpoints disponíveis"
+    }), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    return jsonify({"ok": False, "error": "Erro interno"}), 500
+    return jsonify({
+        "ok": False,
+        "error": "Erro interno do servidor"
+    }), 500
 
-# Configuração para Vercel
+# ============================================================
+# CONFIGURAÇÃO VERCEL
+# ============================================================
+
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 if __name__ == "__main__":
