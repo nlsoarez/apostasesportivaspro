@@ -1,13 +1,11 @@
 """
-APOSTAS FUTEBOL PRO - API Backend v3.1 FINAL
-Código completo com todas as correções dos tutoriais API-Football
-
-Novidades v3.1:
-- Parâmetro STATUS para fixtures
-- Parâmetro TIMEZONE para fixtures
-- Validação de league_name
-- Mensagens de erro melhoradas
-- Todos os novos endpoints (H2H, injuries, odds, predictions, live)
+APOSTAS FUTEBOL PRO - API Backend v3.2 FINAL
+Correções principais (06/11/2025):
+- ✅ Season padrão 2025 (Brasileirão 2025 em andamento)
+- ✅ Suporte a busca por ROUND (rodada específica)
+- ✅ Aceita date OU round como parâmetro
+- ✅ Melhor tratamento de erros e validações
+- ✅ Campo 'rodada' incluído na resposta
 """
 
 from flask import Flask, request, jsonify
@@ -87,85 +85,108 @@ def health():
     
     return jsonify({
         "status": "healthy",
-        "version": "3.1.0",
+        "version": "3.2.0",
         "timestamp": datetime.now().isoformat(),
         "api_key_configured": bool(API_KEY),
         "api_host": API_HOST,
         "api_connection": test_result,
         "api_info": api_info,
-        "changelog": "v3.1: Adicionado status e timezone em fixtures, validações melhoradas"
+        "changelog": "v3.2: Suporte a busca por round, season padrão corrigida"
     })
 
 # ============================================================
-# FIXTURES - CORRIGIDO COM STATUS E TIMEZONE
+# FIXTURES - CORRIGIDO COM SUPORTE A ROUND
 # ============================================================
 
 @app.route("/fixtures", methods=["GET"])
 def fixtures():
     """
-    Busca jogos por data e liga
+    Busca jogos por data, rodada e liga
     
-    NOVOS PARÂMETROS v3.1:
+    PARÂMETROS v3.2:
+    - league: ID da liga (OBRIGATÓRIO)
+    - date: YYYY-MM-DD (opcional se usar round)
+    - round: Rodada específica - ex: "Regular Season - 33" (opcional se usar date)
+    - season: Ano (padrão: 2025) ⚠️ ATUALIZADO para 2025
     - status: FT, NS, LIVE, PST, CANC (opcional)
-    - timezone: ex: America/Sao_Paulo (padrão: UTC)
+    - timezone: ex: America/Sao_Paulo (padrão: America/Sao_Paulo)
     """
-    date = request.args.get("date")
     league = request.args.get("league")
-    season = request.args.get("season", "2024")
-    status = request.args.get("status")  # 🆕 NOVO
-    timezone = request.args.get("timezone")  # 🆕 NOVO
+    date = request.args.get("date")
+    round_param = request.args.get("round")
+    season = request.args.get("season", "2025")  # 🔧 ATUALIZADO: padrão 2025
+    status = request.args.get("status")
+    timezone = request.args.get("timezone", "America/Sao_Paulo")  # 🔧 Padrão Brasil
     
-    # Validação
-    if not date or not league:
+    # Validação - CORRIGIDA para aceitar APENAS league como obrigatório
+    if not league:
         return jsonify({
             "ok": False,
-            "error": "Parâmetros obrigatórios: date (YYYY-MM-DD) e league"
+            "error": "Parâmetro obrigatório: league",
+            "exemplo": "/fixtures?league=71&round=Regular Season - 33&season=2025"
+        }), 400
+    
+    # 🔧 CORREÇÃO: Aceitar date OU round, mas se nenhum for fornecido, também avisar
+    if not date and not round_param:
+        return jsonify({
+            "ok": False,
+            "error": "É necessário fornecer 'date' (YYYY-MM-DD) OU 'round' (ex: 'Regular Season - 33')",
+            "exemplos": {
+                "por_data": "/fixtures?date=2025-11-08&league=71&season=2025",
+                "por_rodada": "/fixtures?round=Regular Season - 33&league=71&season=2025"
+            }
         }), 400
     
     # Montar params
     params = {
-        "date": date,
         "league": league,
-        "season": season
+        "season": season,
+        "timezone": timezone
     }
     
-    # 🆕 Adicionar status se fornecido
+    # Adicionar date ou round (date tem prioridade se ambos forem fornecidos)
+    if date:
+        params["date"] = date
+    elif round_param:
+        params["round"] = round_param
+    
+    # Adicionar status se fornecido
     if status:
         params["status"] = status
-    
-    # 🆕 Adicionar timezone se fornecido (padrão Brasil)
-    if timezone:
-        params["timezone"] = timezone
-    else:
-        params["timezone"] = "America/Sao_Paulo"
     
     data, error = call_api_football("/fixtures", params)
     
     if data:
         fixtures_list = data.get("response", [])
         
-        # 🆕 Validar se não há jogos
+        # Validar se não há jogos
         if len(fixtures_list) == 0:
             return jsonify({
                 "ok": True,
                 "total": 0,
                 "jogos": [],
                 "mensagem": "Nenhum jogo encontrado para estes parâmetros",
-                "sugestao": "Verifique se a data, liga e season estão corretos. Pode não haver jogos nesta data."
+                "sugestoes": [
+                    "Verifique se o season está correto (Brasileirão 2024 usa season=2024)",
+                    "Para buscar rodadas futuras, use 'round' ao invés de 'date'",
+                    "Algumas rodadas podem ainda não estar agendadas na API"
+                ],
+                "parametros_usados": params
             })
         
         jogos = []
         
         for fixture in fixtures_list:
-            # 🆕 Validar league_name
             league_name = fixture.get("league", {}).get("name", "")
+            round_info = fixture.get("league", {}).get("round", "")
             
             jogo = {
                 "id": fixture["fixture"]["id"],
                 "data": fixture["fixture"]["date"],
+                "rodada": round_info,  # 🆕 Incluir informação da rodada
                 "status": fixture["fixture"]["status"]["short"],
                 "status_long": fixture["fixture"]["status"]["long"],
-                "liga": league_name,  # 🆕 Incluir nome da liga
+                "liga": league_name,
                 "time_casa": {
                     "id": fixture["teams"]["home"]["id"],
                     "nome": fixture["teams"]["home"]["name"],
@@ -188,7 +209,7 @@ def fixtures():
             "parametros_usados": params
         })
     
-    return jsonify({"ok": False, "error": error}), 500
+    return jsonify({"ok": False, "error": error, "parametros_usados": params}), 500
 
 # ============================================================
 # STANDINGS
@@ -198,7 +219,7 @@ def fixtures():
 def standings():
     """Busca classificação do campeonato"""
     league = request.args.get("league")
-    season = request.args.get("season", "2024")
+    season = request.args.get("season", "2025")
     
     if not league:
         return jsonify({
@@ -256,7 +277,7 @@ def standings():
 def teams():
     """Busca times de uma liga"""
     league = request.args.get("league")
-    season = request.args.get("season", "2024")
+    season = request.args.get("season", "2025")
     
     if not league:
         return jsonify({
@@ -303,7 +324,7 @@ def team_stats():
     """Busca estatísticas detalhadas de um time"""
     team = request.args.get("team")
     league = request.args.get("league")
-    season = request.args.get("season", "2024")
+    season = request.args.get("season", "2025")
     
     if not team or not league:
         return jsonify({
@@ -352,7 +373,7 @@ def team_stats():
 def topscorers():
     """Busca artilheiros da liga"""
     league = request.args.get("league")
-    season = request.args.get("season", "2024")
+    season = request.args.get("season", "2025")
     
     if not league:
         return jsonify({
@@ -390,7 +411,7 @@ def topscorers():
     return jsonify({"ok": False, "error": error}), 500
 
 # ============================================================
-# 🆕 HEAD TO HEAD (H2H)
+# HEAD TO HEAD (H2H)
 # ============================================================
 
 @app.route("/fixtures/headtohead", methods=["GET"])
@@ -438,7 +459,7 @@ def headtohead():
     return jsonify({"ok": False, "error": error}), 500
 
 # ============================================================
-# 🆕 INJURIES
+# INJURIES
 # ============================================================
 
 @app.route("/injuries", methods=["GET"])
@@ -448,7 +469,7 @@ def injuries():
     Parâmetros: league, team, season
     """
     league = request.args.get("league")
-    season = request.args.get("season", "2024")
+    season = request.args.get("season", "2025")
     team = request.args.get("team")
     
     if not league or not team:
@@ -484,7 +505,7 @@ def injuries():
     return jsonify({"ok": False, "error": error or "Nenhuma lesão reportada"}), 200
 
 # ============================================================
-# 🆕 ODDS
+# ODDS
 # ============================================================
 
 @app.route("/odds", methods=["GET"])
@@ -546,7 +567,7 @@ def odds():
     return jsonify({"ok": False, "error": error}), 500
 
 # ============================================================
-# 🆕 PREDICTIONS
+# PREDICTIONS
 # ============================================================
 
 @app.route("/predictions", methods=["GET"])
@@ -591,7 +612,7 @@ def predictions():
     return jsonify({"ok": False, "error": error}), 500
 
 # ============================================================
-# 🆕 LIVE FIXTURES
+# LIVE FIXTURES
 # ============================================================
 
 @app.route("/fixtures/live", methods=["GET"])
@@ -638,39 +659,43 @@ def home():
     
     return jsonify({
         "status": "✅ Online",
-        "version": "3.1.0",
+        "version": "3.2.0",
         "changelog": {
+            "v3.2": [
+                "🆕 Suporte a busca por 'round' em /fixtures",
+                "🔧 Season padrão atualizada para 2025 (Brasileirão 2025)",
+                "📝 Aceita date OU round como parâmetro",
+                "🎯 Campo 'rodada' incluído na resposta",
+                "⚠️ IMPORTANTE: Brasileirão 2025 usa season=2025"
+            ],
             "v3.1": [
                 "Adicionado parâmetro 'status' em /fixtures",
                 "Adicionado parâmetro 'timezone' em /fixtures",
-                "Validação de league_name nas respostas",
-                "Mensagens de erro melhoradas",
-                "Tratamento para jogos não encontrados"
-            ],
-            "v3.0": [
-                "Adicionado /fixtures/headtohead (H2H)",
-                "Adicionado /injuries",
-                "Adicionado /odds",
-                "Adicionado /predictions",
-                "Adicionado /fixtures/live"
+                "Validação de league_name nas respostas"
             ]
         },
         "endpoints": {
             "basicos": {
                 "health": "/health",
-                "fixtures": f"/fixtures?date={hoje}&league=71&season=2024&status=FT&timezone=America/Sao_Paulo",
-                "standings": "/standings?league=71&season=2024",
-                "teams": "/teams?league=71&season=2024",
-                "statistics": "/teams/statistics?team=127&league=71&season=2024",
-                "topscorers": "/players/topscorers?league=71&season=2024"
+                "fixtures_por_data": f"/fixtures?date={hoje}&league=71&season=2025",
+                "fixtures_por_rodada": "/fixtures?round=Regular Season - 33&league=71&season=2025",
+                "standings": "/standings?league=71&season=2025",
+                "teams": "/teams?league=71&season=2025",
+                "statistics": "/teams/statistics?team=127&league=71&season=2025",
+                "topscorers": "/players/topscorers?league=71&season=2025"
             },
             "avancados_v3": {
                 "headtohead": "/fixtures/headtohead?h2h=127-121",
-                "injuries": "/injuries?league=71&team=127&season=2024",
+                "injuries": "/injuries?league=71&team=127&season=2025",
                 "odds": "/odds?fixture=12345",
                 "predictions": "/predictions?fixture=12345",
                 "live": "/fixtures/live"
             }
+        },
+        "importante": {
+            "season_brasileirao": "⚠️ Brasileirão 2025 usa season=2025!",
+            "busca_por_rodada": "Use 'round=Regular Season - X' para buscar rodada específica",
+            "formato_round": "Brasileirão: 'Regular Season - 1' até 'Regular Season - 38'"
         },
         "status_fixtures": {
             "FT": "Finalizado",
@@ -681,7 +706,7 @@ def home():
             "TBD": "A definir"
         },
         "ligas_principais": {
-            "71": "Brasileirão Série A",
+            "71": "Brasileirão Série A (use season=2025)",
             "72": "Brasileirão Série B",
             "73": "Copa do Brasil",
             "39": "Premier League",
