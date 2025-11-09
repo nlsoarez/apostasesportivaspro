@@ -1,9 +1,11 @@
 import os
 import logging
+import requests
+import json
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
-import requests
 from dotenv import load_dotenv
 
 # =======================
@@ -18,10 +20,12 @@ app.wsgi_app = ProxyFix(app.wsgi_app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Variáveis de ambiente
 API_KEY = os.getenv("API_KEY")
 API_HOST = "v3.football.api-sports.io"
 API_TIMEOUT = float(os.getenv("API_TIMEOUT", "10"))
 HEADERS_API = {"x-apisports-key": API_KEY}
+NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
 # =======================
 # Funções utilitárias
@@ -61,12 +65,12 @@ def home():
     return jsonify({
         "ok": True,
         "name": "Apostas Esportivas Pro API",
-        "version": "4.1",
-        "description": "API profissional para integração com GPTs e análises esportivas",
+        "version": "4.2",
+        "description": "API profissional para integração com GPTs e análises esportivas com contexto de notícias.",
         "endpoints": {
-            "base": ["/health", "/fixtures", "/standings", "/teams", "/teams/statistics", "/players/topscorers"],
+            "base": ["/health", "/fixtures", "/standings", "/teams/statistics", "/players/topscorers"],
             "avancados": ["/fixtures/headtohead", "/injuries", "/odds", "/predictions", "/fixtures/live"],
-            "profissionais": ["/analysis/corners", "/analysis/cards", "/analysis/complete", "/analysis/value"]
+            "profissionais": ["/analysis/corners", "/analysis/cards", "/analysis/value", "/news/context"]
         }
     })
 
@@ -302,6 +306,53 @@ def analysis_value():
 
     value = round((prob * odd) - 1, 3)
     return jsonify({"ok": True, "value": value})
+
+
+# =======================
+# Endpoint contextual
+# =======================
+@app.route("/news/context")
+def news_context():
+    team = request.args.get("team")
+    league = request.args.get("league")
+    days = int(request.args.get("days", 3))
+    if not team:
+        return error_response("Parâmetro 'team' obrigatório")
+
+    query = f"{team} {league or ''} futebol lesão suspensão demitido técnico clima site:ge.globo.com OR site:espn.com.br"
+    url = "https://newsapi.org/v2/everything"
+    headers = {"Authorization": NEWS_API_KEY}
+    params = {
+        "q": query,
+        "language": "pt",
+        "sortBy": "publishedAt",
+        "pageSize": 5,
+        "from": (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d"),
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=10)
+        if response.status_code != 200:
+            return jsonify({"ok": False, "error": f"Erro HTTP {response.status_code}"}), 500
+
+        data = response.json()
+        artigos = [{
+            "titulo": art.get("title"),
+            "fonte": art.get("source", {}).get("name"),
+            "publicado_em": art.get("publishedAt"),
+            "url": art.get("url")
+        } for art in data.get("articles", [])]
+
+        return jsonify({
+            "ok": True,
+            "team": team,
+            "league": league,
+            "total": len(artigos),
+            "noticias": artigos
+        })
+    except Exception as e:
+        logger.error(f"[NEWS API ERROR] {str(e)}")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # =======================
