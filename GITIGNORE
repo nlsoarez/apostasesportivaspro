@@ -1,83 +1,22 @@
-# ===============================
-# Arquivos de ambiente e chaves
-# ===============================
 .env
 *.env
-.env.*
-
-# ===============================
-# Diretórios de dependências
-# ===============================
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
-pip-wheel-metadata/
-.wheels/
+*.log
 venv/
-env/
 ENV/
 .venv/
-.python-version
-
-# ===============================
-# Logs e cache
-# ===============================
-*.log
-*.out
-*.err
-logs/
-*.sqlite3
-*.db
-
-# ===============================
-# Configurações locais
-# ===============================
 .DS_Store
 .idea/
 .vscode/
-*.code-workspace
-
-# ===============================
-# Testes e relatórios
-# ===============================
-.coverage
-.tox/
-pytest_cache/
-htmlcov/
-
-# ===============================
-# Deploy / build temporário
-# ===============================
-.vercel/
-.cache/
 node_modules/
-*.bak
+.vercel/
+dist/
+build/
 tmp/
-temp/
-__temp__/
-
-# ===============================
-# Arquivos sensíveis
-# ===============================
-api_key.txt
-credentials.json
-secrets.json
-config.local.json
-
-# ===============================
-# Documentos e backups
-# ===============================
-*.docx
-*.pdf
 *.zip
 *.tar
-*.gz
 *.bak
 *.old
+*.pdf
+*.docx
