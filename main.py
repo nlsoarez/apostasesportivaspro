@@ -47,8 +47,11 @@ def call_api_football(endpoint, params):
         logger.error(f"[API Exception] {str(e)}")
         return None, str(e)
 
+
 def error_response(msg, status=400):
+    """Retorno de erro padronizado"""
     return jsonify({"ok": False, "error": msg}), status
+
 
 # =======================
 # Endpoints básicos
@@ -66,6 +69,7 @@ def home():
             "profissionais": ["/analysis/corners", "/analysis/cards", "/analysis/complete", "/analysis/value"]
         }
     })
+
 
 @app.route("/health")
 def health():
@@ -232,7 +236,7 @@ def analysis_corners():
     team_away = request.args.get("team_away")
     league = request.args.get("league")
     season = request.args.get("season", "2025")
-    if not (team_home and team_away and league): 
+    if not (team_home and team_away and league):
         return error_response("Parâmetros obrigatórios ausentes")
 
     stats_home, _ = call_api_football("/teams/statistics", {"team": team_home, "league": league, "season": season})
@@ -264,7 +268,7 @@ def analysis_cards():
     team_away = request.args.get("team_away")
     league = request.args.get("league")
     season = request.args.get("season", "2025")
-    if not (team_home and team_away and league): 
+    if not (team_home and team_away and league):
         return error_response("Parâmetros obrigatórios ausentes")
 
     stats_home, _ = call_api_football("/teams/statistics", {"team": team_home, "league": league, "season": season})
