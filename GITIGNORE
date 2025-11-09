@@ -1,62 +1,83 @@
-# Python
+# ===============================
+# Arquivos de ambiente e chaves
+# ===============================
+.env
+*.env
+.env.*
+
+# ===============================
+# Diretórios de dependências
+# ===============================
 __pycache__/
 *.py[cod]
-*$py.class
+*.pyo
+*.pyd
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
 *.egg
-
-# Virtual Environment
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+.wheels/
 venv/
-ENV/
 env/
-.venv
+ENV/
+.venv/
+.python-version
 
-# Environment Variables
-.env
-.env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+# ===============================
+# Logs e cache
+# ===============================
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+*.out
+*.err
+logs/
+*.sqlite3
+*.db
 
-# Vercel
-.vercel
+# ===============================
+# Configurações locais
+# ===============================
+.DS_Store
+.idea/
+.vscode/
+*.code-workspace
 
-# Testing
-.pytest_cache/
+# ===============================
+# Testes e relatórios
+# ===============================
 .coverage
+.tox/
+pytest_cache/
 htmlcov/
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
+# ===============================
+# Deploy / build temporário
+# ===============================
+.vercel/
+.cache/
+node_modules/
+*.bak
+tmp/
+temp/
+__temp__/
+
+# ===============================
+# Arquivos sensíveis
+# ===============================
+api_key.txt
+credentials.json
+secrets.json
+config.local.json
+
+# ===============================
+# Documentos e backups
+# ===============================
+*.docx
+*.pdf
+*.zip
+*.tar
+*.gz
+*.bak
+*.old
