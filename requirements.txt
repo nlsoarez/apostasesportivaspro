@@ -1,20 +1,6 @@
-# ===============================
-# Dependências principais do app
-# ===============================
 Flask==3.0.3
 Flask-Cors==4.0.1
 requests==2.32.3
 python-dotenv==1.0.1
 Werkzeug==3.0.4
-
-# ===============================
-# Execução local / produção
-# ===============================
 gunicorn==22.0.0
-
-# ===============================
-# Observação
-# ===============================
-# - A Vercel usa '@vercel/python' como runtime, que instala automaticamente as libs do requirements.txt.
-# - 'gunicorn' é usado apenas em execução local ou em servidores alternativos.
-# - Não há dependências extras pesadas para manter o cold start leve.
