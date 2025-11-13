@@ -19,8 +19,6 @@ info:
 servers:
   - url: https://apostasesportivas.vercel.app
     description: Servidor de Produção (Vercel)
-  - url: http://localhost:8080
-    description: Servidor de Desenvolvimento Local
 
 tags:
   - name: health
@@ -866,34 +864,73 @@ paths:
           $ref: "#/components/responses/InternalError"
 
 components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Erro ao processar requisição"
+      required:
+        - ok
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+      required:
+        - ok
+
+    Fixture:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1234567
+        data:
+          type: string
+          format: date-time
+          example: "2025-11-13T20:00:00-03:00"
+        status:
+          type: string
+          example: "NS"
+        mandante:
+          type: string
+          example: "Flamengo"
+        visitante:
+          type: string
+          example: "Palmeiras"
+
+    League:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 71
+        name:
+          type: string
+          example: "Brasileirão Série A"
+
   responses:
     BadRequest:
       description: Requisição inválida - parâmetros ausentes ou incorretos
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              ok:
-                type: boolean
-                example: false
-              error:
-                type: string
-                example: "Parâmetros obrigatórios ausentes: league + (date ou round)"
+            $ref: "#/components/schemas/ErrorResponse"
 
     InternalError:
       description: Erro interno do servidor ou API externa
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              ok:
-                type: boolean
-                example: false
-              error:
-                type: string
-                example: "Erro ao conectar com API externa"
+            $ref: "#/components/schemas/ErrorResponse"
 
   securitySchemes:
     ApiKeyAuth:
