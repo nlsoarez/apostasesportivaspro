@@ -1,0 +1,1317 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Apostas Esportivas Pro API",
+    "version": "5.0",
+    "description": "API profissional para an\u00e1lises esportivas completas com:\n- \u26bd Dados em tempo real de 50+ ligas\n- \ud83d\udcca Estat\u00edsticas avan\u00e7adas e previs\u00f5es IA\n- \ud83d\udcb0 Value Betting e an\u00e1lises profissionais\n- \ud83d\udcf0 Contexto de not\u00edcias e les\u00f5es\n- \ud83c\udfaf Integra\u00e7\u00e3o perfeita com ChatGPT\n",
+    "contact": {
+      "name": "API Support",
+      "url": "https://github.com/nlsoarez/apostasesportivaspro"
+    },
+    "license": {
+      "name": "Open Source - Uso Educacional",
+      "url": "https://github.com/nlsoarez/apostasesportivaspro"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://apostasesportivas.vercel.app",
+      "description": "Servidor de Produ\u00e7\u00e3o (Vercel)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health",
+      "description": "Monitoramento e status da API"
+    },
+    {
+      "name": "fixtures",
+      "description": "Jogos e partidas"
+    },
+    {
+      "name": "standings",
+      "description": "Classifica\u00e7\u00e3o e tabelas"
+    },
+    {
+      "name": "teams",
+      "description": "Times e estat\u00edsticas"
+    },
+    {
+      "name": "players",
+      "description": "Jogadores e artilheiros"
+    },
+    {
+      "name": "injuries",
+      "description": "Les\u00f5es e suspens\u00f5es"
+    },
+    {
+      "name": "odds",
+      "description": "Cota\u00e7\u00f5es e odds"
+    },
+    {
+      "name": "predictions",
+      "description": "Previs\u00f5es IA"
+    },
+    {
+      "name": "analysis",
+      "description": "An\u00e1lises profissionais"
+    },
+    {
+      "name": "news",
+      "description": "Not\u00edcias e contexto"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Documenta\u00e7\u00e3o da API",
+        "description": "Retorna informa\u00e7\u00f5es sobre a API e lista de endpoints dispon\u00edveis",
+        "operationId": "getApiInfo",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Informa\u00e7\u00f5es da API",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "Apostas Esportivas Pro API"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "5.0"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "endpoints": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Verifica status da API",
+        "description": "Health check b\u00e1sico para monitoramento",
+        "operationId": "checkHealth",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "API operacional",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "API operacional"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fixtures": {
+      "get": {
+        "summary": "Lista jogos por data, liga ou rodada",
+        "description": "Busca jogos filtrados por:\n- Data espec\u00edfica (YYYY-MM-DD)\n- Rodada da competi\u00e7\u00e3o\n- Status (NS=agendado, LIVE=ao vivo, FT=finalizado)\n",
+        "operationId": "getFixtures",
+        "tags": [
+          "fixtures"
+        ],
+        "parameters": [
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga (ex. 71=Brasileir\u00e3o, 39=Premier League)",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Data dos jogos no formato YYYY-MM-DD",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2025-11-13"
+            }
+          },
+          {
+            "name": "round",
+            "in": "query",
+            "required": false,
+            "description": "Rodada da competi\u00e7\u00e3o (alternativa a date)",
+            "schema": {
+              "type": "string",
+              "example": "Regular Season - 34"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Status do jogo (NS, LIVE, FT, PST, CANC, etc.)",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "NS",
+                "LIVE",
+                "FT",
+                "PST",
+                "CANC",
+                "ABD",
+                "AWD",
+                "WO",
+                "TBD"
+              ],
+              "example": "LIVE"
+            }
+          },
+          {
+            "name": "timezone",
+            "in": "query",
+            "required": false,
+            "description": "Fuso hor\u00e1rio para datas",
+            "schema": {
+              "type": "string",
+              "default": "America/Sao_Paulo",
+              "example": "America/Sao_Paulo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de jogos encontrados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 10
+                    },
+                    "jogos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "example": 1234567
+                          },
+                          "data": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2025-11-13T20:00:00-03:00"
+                          },
+                          "status": {
+                            "type": "string",
+                            "example": "NS"
+                          },
+                          "mandante": {
+                            "type": "string",
+                            "example": "Flamengo"
+                          },
+                          "visitante": {
+                            "type": "string",
+                            "example": "Palmeiras"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/fixtures/headtohead": {
+      "get": {
+        "summary": "Hist\u00f3rico de confrontos diretos (H2H)",
+        "description": "Retorna os \u00faltimos 10 jogos entre dois times",
+        "operationId": "getHeadToHead",
+        "tags": [
+          "fixtures"
+        ],
+        "parameters": [
+          {
+            "name": "h2h",
+            "in": "query",
+            "required": true,
+            "description": "IDs dos times no formato \"idTimeA-idTimeB\"",
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d+-\\d+$",
+              "example": "127-121"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hist\u00f3rico de confrontos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 10
+                    },
+                    "resultados": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "mandante": {
+                            "type": "string",
+                            "example": "Flamengo"
+                          },
+                          "visitante": {
+                            "type": "string",
+                            "example": "Palmeiras"
+                          },
+                          "placar": {
+                            "type": "string",
+                            "example": "2x1"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/fixtures/live": {
+      "get": {
+        "summary": "Jogos ao vivo no momento",
+        "description": "Lista os top 20 jogos que est\u00e3o acontecendo agora",
+        "operationId": "getLiveFixtures",
+        "tags": [
+          "fixtures"
+        ],
+        "responses": {
+          "200": {
+            "description": "Jogos ao vivo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "partidas": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "example": 1234567
+                          },
+                          "status": {
+                            "type": "string",
+                            "example": "1H"
+                          },
+                          "minuto": {
+                            "type": "integer",
+                            "example": 32
+                          },
+                          "mandante": {
+                            "type": "string",
+                            "example": "Flamengo"
+                          },
+                          "visitante": {
+                            "type": "string",
+                            "example": "Palmeiras"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/standings": {
+      "get": {
+        "summary": "Classifica\u00e7\u00e3o da liga",
+        "description": "Tabela de classifica\u00e7\u00e3o completa com pontos, vit\u00f3rias, derrotas, etc.",
+        "operationId": "getStandings",
+        "tags": [
+          "standings"
+        ],
+        "parameters": [
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tabela de classifica\u00e7\u00e3o",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "standings": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/teams/statistics": {
+      "get": {
+        "summary": "Estat\u00edsticas detalhadas de um time",
+        "description": "Retorna estat\u00edsticas completas incluindo:\n- Gols marcados/sofridos\n- Escanteios m\u00e9dios\n- Cart\u00f5es amarelos/vermelhos\n- Performance em casa/fora\n",
+        "operationId": "getTeamStatistics",
+        "tags": [
+          "teams"
+        ],
+        "parameters": [
+          {
+            "name": "team",
+            "in": "query",
+            "required": true,
+            "description": "ID do time",
+            "schema": {
+              "type": "integer",
+              "example": 127
+            }
+          },
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estat\u00edsticas do time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "stats": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/players/topscorers": {
+      "get": {
+        "summary": "Lista de artilheiros da liga",
+        "description": "Jogadores com mais gols na competi\u00e7\u00e3o",
+        "operationId": "getTopScorers",
+        "tags": [
+          "players"
+        ],
+        "parameters": [
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de artilheiros",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "artilheiros": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/injuries": {
+      "get": {
+        "summary": "Les\u00f5es e suspens\u00f5es de um time",
+        "description": "Lista jogadores indispon\u00edveis por les\u00e3o, suspens\u00e3o ou outros motivos",
+        "operationId": "getInjuries",
+        "tags": [
+          "injuries"
+        ],
+        "parameters": [
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "team",
+            "in": "query",
+            "required": true,
+            "description": "ID do time",
+            "schema": {
+              "type": "integer",
+              "example": 127
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de les\u00f5es/suspens\u00f5es",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 5
+                    },
+                    "lesoes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "jogador": {
+                            "type": "string",
+                            "example": "Neymar Jr"
+                          },
+                          "tipo": {
+                            "type": "string",
+                            "example": "Injury"
+                          },
+                          "motivo": {
+                            "type": "string",
+                            "example": "Ankle Injury"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/odds": {
+      "get": {
+        "summary": "Odds em tempo real de um jogo",
+        "description": "Cota\u00e7\u00f5es de m\u00faltiplas casas de apostas para um jogo espec\u00edfico",
+        "operationId": "getOdds",
+        "tags": [
+          "odds"
+        ],
+        "parameters": [
+          {
+            "name": "fixture",
+            "in": "query",
+            "required": true,
+            "description": "ID do jogo",
+            "schema": {
+              "type": "integer",
+              "example": 1234567
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Odds dispon\u00edveis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "odds": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/predictions": {
+      "get": {
+        "summary": "Previs\u00f5es IA para um jogo",
+        "description": "An\u00e1lise preditiva da API-Sports incluindo:\n- Porcentagem de vit\u00f3ria de cada time\n- Forma recente\n- Estat\u00edsticas H2H\n- An\u00e1lise de gols\n",
+        "operationId": "getPredictions",
+        "tags": [
+          "predictions"
+        ],
+        "parameters": [
+          {
+            "name": "fixture",
+            "in": "query",
+            "required": true,
+            "description": "ID do jogo",
+            "schema": {
+              "type": "integer",
+              "example": 1234567
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Previs\u00f5es geradas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "predicoes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/analysis/corners": {
+      "get": {
+        "summary": "An\u00e1lise de escanteios",
+        "description": "Calcula estimativa de escanteios baseado em:\n- M\u00e9dia de escanteios a favor (casa)\n- M\u00e9dia de escanteios a favor (fora)\n- Gera sugest\u00f5es de apostas com confian\u00e7a\n",
+        "operationId": "getAnalysisCorners",
+        "tags": [
+          "analysis"
+        ],
+        "parameters": [
+          {
+            "name": "team_home",
+            "in": "query",
+            "required": true,
+            "description": "ID do time mandante",
+            "schema": {
+              "type": "integer",
+              "example": 127
+            }
+          },
+          {
+            "name": "team_away",
+            "in": "query",
+            "required": true,
+            "description": "ID do time visitante",
+            "schema": {
+              "type": "integer",
+              "example": 121
+            }
+          },
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An\u00e1lise de escanteios gerada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "analise_escanteios": {
+                      "type": "object",
+                      "properties": {
+                        "time_casa": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 127
+                            }
+                          }
+                        },
+                        "time_fora": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer",
+                              "example": 121
+                            }
+                          }
+                        },
+                        "estimativa_total": {
+                          "type": "number",
+                          "format": "float",
+                          "example": 10.5
+                        },
+                        "sugestoes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "mercado": {
+                                "type": "string",
+                                "example": "Over 9.5 Escanteios Totais"
+                              },
+                              "confianca": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "example": 5
+                              },
+                              "value_estimado": {
+                                "type": "string",
+                                "example": "+20%"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/analysis/cards": {
+      "get": {
+        "summary": "An\u00e1lise de cart\u00f5es",
+        "description": "Calcula estimativa de cart\u00f5es amarelos baseado em:\n- M\u00e9dia de cart\u00f5es em casa\n- M\u00e9dia de cart\u00f5es fora\n- Gera sugest\u00f5es de apostas\n",
+        "operationId": "getAnalysisCards",
+        "tags": [
+          "analysis"
+        ],
+        "parameters": [
+          {
+            "name": "team_home",
+            "in": "query",
+            "required": true,
+            "description": "ID do time mandante",
+            "schema": {
+              "type": "integer",
+              "example": 127
+            }
+          },
+          {
+            "name": "team_away",
+            "in": "query",
+            "required": true,
+            "description": "ID do time visitante",
+            "schema": {
+              "type": "integer",
+              "example": 121
+            }
+          },
+          {
+            "name": "league",
+            "in": "query",
+            "required": true,
+            "description": "ID da liga",
+            "schema": {
+              "type": "integer",
+              "example": 71
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "description": "Ano da temporada",
+            "schema": {
+              "type": "integer",
+              "default": 2025,
+              "example": 2025
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An\u00e1lise de cart\u00f5es gerada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "analise_cartoes": {
+                      "type": "object",
+                      "properties": {
+                        "estimativa_total": {
+                          "type": "number",
+                          "format": "float",
+                          "example": 5.5
+                        },
+                        "sugestoes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "mercado": {
+                                "type": "string",
+                                "example": "Over 5.5 Cart\u00f5es Totais"
+                              },
+                              "confianca": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "example": 5
+                              },
+                              "value_estimado": {
+                                "type": "string",
+                                "example": "+25%"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/analysis/value": {
+      "get": {
+        "summary": "Calcula Value Bet",
+        "description": "F\u00f3rmula: (probabilidade \u00d7 odd) - 1\n- Resultado > 0: Aposta com valor (recomendada)\n- Resultado < 0: Sem valor (evitar)\n",
+        "operationId": "getValueBet",
+        "tags": [
+          "analysis"
+        ],
+        "parameters": [
+          {
+            "name": "odd",
+            "in": "query",
+            "required": true,
+            "description": "Odd da casa de apostas (ex. 2.50)",
+            "schema": {
+              "type": "number",
+              "format": "float",
+              "minimum": 1.01,
+              "example": 2.5
+            }
+          },
+          {
+            "name": "probability",
+            "in": "query",
+            "required": true,
+            "description": "Probabilidade estimada (0-1, ex. 0.50 = 50%)",
+            "schema": {
+              "type": "number",
+              "format": "float",
+              "minimum": 0.01,
+              "maximum": 1.0,
+              "example": 0.5
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Value calculado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "value": {
+                      "type": "number",
+                      "format": "float",
+                      "example": 0.25,
+                      "description": "Valor positivo indica value bet"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/news/context": {
+      "get": {
+        "summary": "Not\u00edcias recentes de um time",
+        "description": "Busca not\u00edcias relevantes sobre:\n- Les\u00f5es e suspens\u00f5es\n- Mudan\u00e7as t\u00e9cnicas\n- Clima do time\n- Fontes: GE, ESPN\n",
+        "operationId": "getNewsContext",
+        "tags": [
+          "news"
+        ],
+        "parameters": [
+          {
+            "name": "team",
+            "in": "query",
+            "required": true,
+            "description": "Nome do time",
+            "schema": {
+              "type": "string",
+              "example": "Flamengo"
+            }
+          },
+          {
+            "name": "league",
+            "in": "query",
+            "required": false,
+            "description": "Nome da liga (opcional)",
+            "schema": {
+              "type": "string",
+              "example": "Brasileir\u00e3o"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "description": "\u00daltimos N dias de not\u00edcias",
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "minimum": 1,
+              "maximum": 30,
+              "example": 3
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Not\u00edcias encontradas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "team": {
+                      "type": "string",
+                      "example": "Flamengo"
+                    },
+                    "league": {
+                      "type": "string",
+                      "example": "Brasileir\u00e3o"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 5
+                    },
+                    "noticias": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "titulo": {
+                            "type": "string",
+                            "example": "Neymar sofre les\u00e3o no tornozelo"
+                          },
+                          "fonte": {
+                            "type": "string",
+                            "example": "GE Globo"
+                          },
+                          "publicado_em": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2025-11-12T15:30:00Z"
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri",
+                            "example": "https://ge.globo.com/..."
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "example": "Erro ao processar requisi\u00e7\u00e3o"
+          }
+        },
+        "required": [
+          "ok",
+          "error"
+        ]
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "Fixture": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1234567
+          },
+          "data": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2025-11-13T20:00:00-03:00"
+          },
+          "status": {
+            "type": "string",
+            "example": "NS"
+          },
+          "mandante": {
+            "type": "string",
+            "example": "Flamengo"
+          },
+          "visitante": {
+            "type": "string",
+            "example": "Palmeiras"
+          }
+        }
+      },
+      "League": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 71
+          },
+          "name": {
+            "type": "string",
+            "example": "Brasileir\u00e3o S\u00e9rie A"
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Requisi\u00e7\u00e3o inv\u00e1lida - par\u00e2metros ausentes ou incorretos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Erro interno do servidor ou API externa",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "Chave de API (apenas para uso interno)"
+      }
+    }
+  },
+  "security": []
+}
