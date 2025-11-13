@@ -195,7 +195,21 @@ apostasesportivaspro/
 
 ## 📈 Changelog
 
-### v3.1.0 (Atual)
+### v5.0 (Atual) 🎉
+- ✨ **Schema OpenAPI 3.1.0 completo** (`/openapi.json`)
+- ✨ **Endpoint `/leagues`** - Lista todas as ligas suportadas
+- 🔒 **Validações robustas** de parâmetros com ranges e tipos
+- 📋 **Constantes configuráveis** (sem magic numbers)
+- 📚 **Docstrings completas** em todas as funções
+- 🩺 **Health check avançado** com teste de conectividade
+- 🎯 **Mensagens de erro detalhadas** com exemplos
+- ⚡ **Logging estruturado** com timestamps
+- 🔧 **Validação de API_KEY** na inicialização
+- 📊 **Value Bet melhorado** com interpretação e fórmula
+- 🌍 **22 ligas categorizadas** (Brasil, Europa, Internacional)
+- 🐛 Correções de bugs e melhorias de performance
+
+### v3.1.0
 - ✨ Parâmetro `status` em `/fixtures` (FT, NS, LIVE, etc.)
 - ✨ Parâmetro `timezone` em `/fixtures` (padrão: America/Sao_Paulo)
 - 🐛 Validação de `league_name` nas respostas

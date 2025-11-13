@@ -1,0 +1,942 @@
+openapi: 3.1.0
+info:
+  title: Apostas Esportivas Pro API
+  version: "5.0"
+  description: |
+    API profissional para análises esportivas completas com:
+    - ⚽ Dados em tempo real de 50+ ligas
+    - 📊 Estatísticas avançadas e previsões IA
+    - 💰 Value Betting e análises profissionais
+    - 📰 Contexto de notícias e lesões
+    - 🎯 Integração perfeita com ChatGPT
+  contact:
+    name: API Support
+    url: https://github.com/nlsoarez/apostasesportivaspro
+  license:
+    name: Open Source - Uso Educacional
+    url: https://github.com/nlsoarez/apostasesportivaspro
+
+servers:
+  - url: https://apostasesportivas.vercel.app
+    description: Servidor de Produção (Vercel)
+
+tags:
+  - name: health
+    description: Monitoramento e status da API
+  - name: fixtures
+    description: Jogos e partidas
+  - name: standings
+    description: Classificação e tabelas
+  - name: teams
+    description: Times e estatísticas
+  - name: players
+    description: Jogadores e artilheiros
+  - name: injuries
+    description: Lesões e suspensões
+  - name: odds
+    description: Cotações e odds
+  - name: predictions
+    description: Previsões IA
+  - name: analysis
+    description: Análises profissionais
+  - name: news
+    description: Notícias e contexto
+
+paths:
+  /:
+    get:
+      summary: Documentação da API
+      description: Retorna informações sobre a API e lista de endpoints disponíveis
+      operationId: getApiInfo
+      tags:
+        - health
+      responses:
+        "200":
+          description: Informações da API
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  name:
+                    type: string
+                    example: "Apostas Esportivas Pro API"
+                  version:
+                    type: string
+                    example: "5.0"
+                  description:
+                    type: string
+                  endpoints:
+                    type: object
+
+  /health:
+    get:
+      summary: Verifica status da API
+      description: Health check básico para monitoramento
+      operationId: checkHealth
+      tags:
+        - health
+      responses:
+        "200":
+          description: API operacional
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "API operacional"
+
+  /fixtures:
+    get:
+      summary: Lista jogos por data, liga ou rodada
+      description: |
+        Busca jogos filtrados por:
+        - Data específica (YYYY-MM-DD)
+        - Rodada da competição
+        - Status (NS=agendado, LIVE=ao vivo, FT=finalizado)
+      operationId: getFixtures
+      tags:
+        - fixtures
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: ID da liga (ex. 71=Brasileirão, 39=Premier League)
+          schema:
+            type: integer
+            example: 71
+        - name: date
+          in: query
+          required: false
+          description: Data dos jogos no formato YYYY-MM-DD
+          schema:
+            type: string
+            format: date
+            example: "2025-11-13"
+        - name: round
+          in: query
+          required: false
+          description: Rodada da competição (alternativa a date)
+          schema:
+            type: string
+            example: "Regular Season - 34"
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+        - name: status
+          in: query
+          required: false
+          description: Status do jogo (NS, LIVE, FT, PST, CANC, etc.)
+          schema:
+            type: string
+            enum: [NS, LIVE, FT, PST, CANC, ABD, AWD, WO, TBD]
+            example: "LIVE"
+        - name: timezone
+          in: query
+          required: false
+          description: Fuso horário para datas
+          schema:
+            type: string
+            default: "America/Sao_Paulo"
+            example: "America/Sao_Paulo"
+      responses:
+        "200":
+          description: Lista de jogos encontrados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  total:
+                    type: integer
+                    example: 10
+                  jogos:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1234567
+                        data:
+                          type: string
+                          format: date-time
+                          example: "2025-11-13T20:00:00-03:00"
+                        status:
+                          type: string
+                          example: "NS"
+                        mandante:
+                          type: string
+                          example: "Flamengo"
+                        visitante:
+                          type: string
+                          example: "Palmeiras"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /fixtures/headtohead:
+    get:
+      summary: Histórico de confrontos diretos (H2H)
+      description: Retorna os últimos 10 jogos entre dois times
+      operationId: getHeadToHead
+      tags:
+        - fixtures
+      parameters:
+        - name: h2h
+          in: query
+          required: true
+          description: IDs dos times no formato "idTimeA-idTimeB"
+          schema:
+            type: string
+            pattern: '^\d+-\d+$'
+            example: "127-121"
+      responses:
+        "200":
+          description: Histórico de confrontos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  total:
+                    type: integer
+                    example: 10
+                  resultados:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        mandante:
+                          type: string
+                          example: "Flamengo"
+                        visitante:
+                          type: string
+                          example: "Palmeiras"
+                        placar:
+                          type: string
+                          example: "2x1"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /fixtures/live:
+    get:
+      summary: Jogos ao vivo no momento
+      description: Lista os top 20 jogos que estão acontecendo agora
+      operationId: getLiveFixtures
+      tags:
+        - fixtures
+      responses:
+        "200":
+          description: Jogos ao vivo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  partidas:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1234567
+                        status:
+                          type: string
+                          example: "1H"
+                        minuto:
+                          type: integer
+                          example: 32
+                        mandante:
+                          type: string
+                          example: "Flamengo"
+                        visitante:
+                          type: string
+                          example: "Palmeiras"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /standings:
+    get:
+      summary: Classificação da liga
+      description: Tabela de classificação completa com pontos, vitórias, derrotas, etc.
+      operationId: getStandings
+      tags:
+        - standings
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Tabela de classificação
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  standings:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /teams/statistics:
+    get:
+      summary: Estatísticas detalhadas de um time
+      description: |
+        Retorna estatísticas completas incluindo:
+        - Gols marcados/sofridos
+        - Escanteios médios
+        - Cartões amarelos/vermelhos
+        - Performance em casa/fora
+      operationId: getTeamStatistics
+      tags:
+        - teams
+      parameters:
+        - name: team
+          in: query
+          required: true
+          description: ID do time
+          schema:
+            type: integer
+            example: 127
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Estatísticas do time
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  stats:
+                    type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /players/topscorers:
+    get:
+      summary: Lista de artilheiros da liga
+      description: Jogadores com mais gols na competição
+      operationId: getTopScorers
+      tags:
+        - players
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Lista de artilheiros
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  artilheiros:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /injuries:
+    get:
+      summary: Lesões e suspensões de um time
+      description: Lista jogadores indisponíveis por lesão, suspensão ou outros motivos
+      operationId: getInjuries
+      tags:
+        - injuries
+      parameters:
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: team
+          in: query
+          required: true
+          description: ID do time
+          schema:
+            type: integer
+            example: 127
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Lista de lesões/suspensões
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  total:
+                    type: integer
+                    example: 5
+                  lesoes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        jogador:
+                          type: string
+                          example: "Neymar Jr"
+                        tipo:
+                          type: string
+                          example: "Injury"
+                        motivo:
+                          type: string
+                          example: "Ankle Injury"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /odds:
+    get:
+      summary: Odds em tempo real de um jogo
+      description: Cotações de múltiplas casas de apostas para um jogo específico
+      operationId: getOdds
+      tags:
+        - odds
+      parameters:
+        - name: fixture
+          in: query
+          required: true
+          description: ID do jogo
+          schema:
+            type: integer
+            example: 1234567
+      responses:
+        "200":
+          description: Odds disponíveis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  odds:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /predictions:
+    get:
+      summary: Previsões IA para um jogo
+      description: |
+        Análise preditiva da API-Sports incluindo:
+        - Porcentagem de vitória de cada time
+        - Forma recente
+        - Estatísticas H2H
+        - Análise de gols
+      operationId: getPredictions
+      tags:
+        - predictions
+      parameters:
+        - name: fixture
+          in: query
+          required: true
+          description: ID do jogo
+          schema:
+            type: integer
+            example: 1234567
+      responses:
+        "200":
+          description: Previsões geradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  predicoes:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /analysis/corners:
+    get:
+      summary: Análise de escanteios
+      description: |
+        Calcula estimativa de escanteios baseado em:
+        - Média de escanteios a favor (casa)
+        - Média de escanteios a favor (fora)
+        - Gera sugestões de apostas com confiança
+      operationId: getAnalysisCorners
+      tags:
+        - analysis
+      parameters:
+        - name: team_home
+          in: query
+          required: true
+          description: ID do time mandante
+          schema:
+            type: integer
+            example: 127
+        - name: team_away
+          in: query
+          required: true
+          description: ID do time visitante
+          schema:
+            type: integer
+            example: 121
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Análise de escanteios gerada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  analise_escanteios:
+                    type: object
+                    properties:
+                      time_casa:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 127
+                      time_fora:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 121
+                      estimativa_total:
+                        type: number
+                        format: float
+                        example: 10.5
+                      sugestoes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            mercado:
+                              type: string
+                              example: "Over 9.5 Escanteios Totais"
+                            confianca:
+                              type: integer
+                              minimum: 1
+                              maximum: 5
+                              example: 5
+                            value_estimado:
+                              type: string
+                              example: "+20%"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /analysis/cards:
+    get:
+      summary: Análise de cartões
+      description: |
+        Calcula estimativa de cartões amarelos baseado em:
+        - Média de cartões em casa
+        - Média de cartões fora
+        - Gera sugestões de apostas
+      operationId: getAnalysisCards
+      tags:
+        - analysis
+      parameters:
+        - name: team_home
+          in: query
+          required: true
+          description: ID do time mandante
+          schema:
+            type: integer
+            example: 127
+        - name: team_away
+          in: query
+          required: true
+          description: ID do time visitante
+          schema:
+            type: integer
+            example: 121
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Análise de cartões gerada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  analise_cartoes:
+                    type: object
+                    properties:
+                      estimativa_total:
+                        type: number
+                        format: float
+                        example: 5.5
+                      sugestoes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            mercado:
+                              type: string
+                              example: "Over 5.5 Cartões Totais"
+                            confianca:
+                              type: integer
+                              minimum: 1
+                              maximum: 5
+                              example: 5
+                            value_estimado:
+                              type: string
+                              example: "+25%"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /analysis/value:
+    get:
+      summary: Calcula Value Bet
+      description: |
+        Fórmula: (probabilidade × odd) - 1
+        - Resultado > 0: Aposta com valor (recomendada)
+        - Resultado < 0: Sem valor (evitar)
+      operationId: getValueBet
+      tags:
+        - analysis
+      parameters:
+        - name: odd
+          in: query
+          required: true
+          description: Odd da casa de apostas (ex. 2.50)
+          schema:
+            type: number
+            format: float
+            minimum: 1.01
+            example: 2.50
+        - name: probability
+          in: query
+          required: true
+          description: Probabilidade estimada (0-1, ex. 0.50 = 50%)
+          schema:
+            type: number
+            format: float
+            minimum: 0.01
+            maximum: 1.0
+            example: 0.50
+      responses:
+        "200":
+          description: Value calculado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  value:
+                    type: number
+                    format: float
+                    example: 0.25
+                    description: "Valor positivo indica value bet"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /news/context:
+    get:
+      summary: Notícias recentes de um time
+      description: |
+        Busca notícias relevantes sobre:
+        - Lesões e suspensões
+        - Mudanças técnicas
+        - Clima do time
+        - Fontes: GE, ESPN
+      operationId: getNewsContext
+      tags:
+        - news
+      parameters:
+        - name: team
+          in: query
+          required: true
+          description: Nome do time
+          schema:
+            type: string
+            example: "Flamengo"
+        - name: league
+          in: query
+          required: false
+          description: Nome da liga (opcional)
+          schema:
+            type: string
+            example: "Brasileirão"
+        - name: days
+          in: query
+          required: false
+          description: Últimos N dias de notícias
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 30
+            example: 3
+      responses:
+        "200":
+          description: Notícias encontradas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  team:
+                    type: string
+                    example: "Flamengo"
+                  league:
+                    type: string
+                    example: "Brasileirão"
+                  total:
+                    type: integer
+                    example: 5
+                  noticias:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        titulo:
+                          type: string
+                          example: "Neymar sofre lesão no tornozelo"
+                        fonte:
+                          type: string
+                          example: "GE Globo"
+                        publicado_em:
+                          type: string
+                          format: date-time
+                          example: "2025-11-12T15:30:00Z"
+                        url:
+                          type: string
+                          format: uri
+                          example: "https://ge.globo.com/..."
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "Erro ao processar requisição"
+      required:
+        - ok
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+      required:
+        - ok
+
+    Fixture:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1234567
+        data:
+          type: string
+          format: date-time
+          example: "2025-11-13T20:00:00-03:00"
+        status:
+          type: string
+          example: "NS"
+        mandante:
+          type: string
+          example: "Flamengo"
+        visitante:
+          type: string
+          example: "Palmeiras"
+
+    League:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 71
+        name:
+          type: string
+          example: "Brasileirão Série A"
+
+  responses:
+    BadRequest:
+      description: Requisição inválida - parâmetros ausentes ou incorretos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    InternalError:
+      description: Erro interno do servidor ou API externa
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Chave de API (apenas para uso interno)
+
+security: []
