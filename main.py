@@ -259,21 +259,39 @@ def openapi_json():
     Retorna o schema OpenAPI em formato JSON.
     """
     try:
-        # Tenta encontrar o arquivo no diretório atual ou no diretório raiz
-        import os
+        # Tenta carregar do arquivo primeiro
         base_dir = os.path.dirname(os.path.abspath(__file__))
         yaml_path = os.path.join(base_dir, "openapi.yaml")
 
-        # Se não encontrar, tenta no diretório pai (Vercel)
         if not os.path.exists(yaml_path):
             yaml_path = "openapi.yaml"
 
-        with open(yaml_path, "r", encoding="utf-8") as f:
-            openapi_yaml = yaml.safe_load(f)
-        return jsonify(openapi_yaml)
-    except FileNotFoundError:
-        logger.error(f"Schema OpenAPI não encontrado. Tentou: {yaml_path}")
-        return error_response("Schema OpenAPI não encontrado", 404)
+        if os.path.exists(yaml_path):
+            with open(yaml_path, "r", encoding="utf-8") as f:
+                openapi_yaml = yaml.safe_load(f)
+            return jsonify(openapi_yaml)
+        else:
+            # Fallback: retorna schema inline se arquivo não existir
+            logger.warning("openapi.yaml não encontrado, usando schema inline")
+            return jsonify({
+                "openapi": "3.1.0",
+                "info": {
+                    "title": "Apostas Esportivas Pro API",
+                    "version": API_VERSION,
+                    "description": "API profissional para análises esportivas. Schema completo disponível em: https://github.com/nlsoarez/apostasesportivaspro/blob/main/openapi.yaml"
+                },
+                "servers": [{"url": "https://apostasesportivas.vercel.app"}],
+                "paths": {
+                    "/health": {"get": {"summary": "Health check", "operationId": "checkHealth"}},
+                    "/fixtures": {"get": {"summary": "Lista jogos", "operationId": "getFixtures"}},
+                    "/standings": {"get": {"summary": "Classificação", "operationId": "getStandings"}},
+                    "/leagues": {"get": {"summary": "Ligas suportadas", "operationId": "getLeagues"}},
+                    "/analysis/value": {"get": {"summary": "Value Bet", "operationId": "getValueBet"}},
+                    "/analysis/corners": {"get": {"summary": "Análise escanteios", "operationId": "getAnalysisCorners"}},
+                    "/analysis/cards": {"get": {"summary": "Análise cartões", "operationId": "getAnalysisCards"}},
+                    "/news/context": {"get": {"summary": "Notícias", "operationId": "getNewsContext"}}
+                }
+            })
     except Exception as e:
         logger.error(f"Erro ao carregar OpenAPI: {e}")
         return error_response(f"Erro ao carregar schema: {str(e)}", 500)
