@@ -1,0 +1,734 @@
+BASE DE CONHECIMENTO - APOSTAS ESPORTIVAS PRO
+=============================================
+
+VERSÃO DA API: 5.0
+ÚLTIMA ATUALIZAÇÃO: Novembro 2025
+
+
+═══════════════════════════════════════════════════════════
+1. LIGAS SUPORTADAS (IDs da API)
+═══════════════════════════════════════════════════════════
+
+BRASIL
+------
+71  - Brasileirão Série A
+72  - Brasileirão Série B
+73  - Copa do Brasil
+75  - Série C
+76  - Paulista A1
+
+EUROPA - TOP 5
+--------------
+39  - Premier League (Inglaterra)
+140 - La Liga (Espanha)
+135 - Serie A (Itália)
+78  - Bundesliga (Alemanha)
+61  - Ligue 1 (França)
+
+EUROPA - OUTROS
+---------------
+94  - Primeira Liga (Portugal)
+88  - Eredivisie (Holanda)
+203 - Süper Lig (Turquia)
+144 - Jupiler League (Bélgica)
+79  - 2. Bundesliga (Alemanha)
+
+INTERNACIONAIS
+--------------
+2   - UEFA Champions League
+3   - UEFA Europa League
+848 - UEFA Conference League
+1   - FIFA World Cup
+9   - Copa América
+13  - CONMEBOL Libertadores
+11  - CONMEBOL Sudamericana
+
+
+═══════════════════════════════════════════════════════════
+2. TIMES PRINCIPAIS - IDs DE REFERÊNCIA
+═══════════════════════════════════════════════════════════
+
+BRASILEIRÃO (Série A)
+---------------------
+127 - Flamengo
+121 - Palmeiras
+131 - Corinthians
+126 - São Paulo
+124 - Fluminense
+130 - Internacional
+120 - Grêmio
+128 - Santos
+129 - Vasco da Gama
+125 - Atlético Mineiro
+132 - Botafogo
+1062 - Fortaleza
+1193 - Athletico Paranaense
+2282 - Bahia
+1062 - Cruzeiro
+
+PREMIER LEAGUE
+--------------
+33  - Manchester United
+40  - Liverpool
+50  - Manchester City
+42  - Arsenal
+49  - Chelsea
+47  - Tottenham
+34  - Newcastle
+35  - West Ham
+66  - Aston Villa
+45  - Everton
+
+LA LIGA
+-------
+541 - Real Madrid
+529 - Barcelona
+530 - Atlético Madrid
+532 - Valencia
+536 - Sevilla
+533 - Villarreal
+548 - Real Sociedad
+727 - Athletic Bilbao
+531 - Real Betis
+543 - Real Valladolid
+
+NOTA: Para IDs completos, use os endpoints /fixtures ou /standings da liga específica.
+
+
+═══════════════════════════════════════════════════════════
+3. GLOSSÁRIO DE TERMOS DE APOSTAS
+═══════════════════════════════════════════════════════════
+
+TIPOS DE APOSTAS
+----------------
+
+1X2
+- 1: Vitória do mandante (time da casa)
+- X: Empate
+- 2: Vitória do visitante
+
+Over/Under (Mais/Menos)
+- Over 2.5: Total de gols MAIOR que 2.5 (3+)
+- Under 2.5: Total de gols MENOR que 2.5 (0, 1, 2)
+- Funciona para gols, escanteios, cartões, etc.
+
+Ambas Marcam (BTTS - Both Teams To Score)
+- Sim: Ambos times marcam pelo menos 1 gol
+- Não: Pelo menos um time não marca
+
+Handicap Asiático
+- Handicap 0: Empate devolve aposta
+- Handicap -1: Time precisa vencer por 2+ gols
+- Handicap +1: Time pode empatar ou vencer
+
+Dupla Chance
+- 1X: Mandante vence OU empata
+- 12: Mandante vence OU visitante vence
+- X2: Empata OU visitante vence
+
+Escanteios
+- Over/Under escanteios totais
+- Escanteios por time
+- Primeiro/último escanteio
+
+Cartões
+- Over/Under cartões amarelos
+- Cartão vermelho: Sim/Não
+- Total de cartões no jogo
+
+
+TERMOS TÉCNICOS
+---------------
+
+Odd (Cotação)
+- Multiplicador do valor apostado
+- Odd 2.00 = dobra seu dinheiro se acertar
+- Odd 1.50 = retorna 1.5x o valor apostado
+
+Stake
+- Valor apostado em uma aposta
+
+ROI (Return on Investment)
+- Retorno sobre investimento
+- ROI = (Lucro / Total Apostado) × 100%
+
+Bankroll
+- Capital total disponível para apostas
+- Nunca aposte mais de 1-5% do bankroll por aposta
+
+Value Bet
+- Aposta com valor esperado positivo
+- Quando sua probabilidade estimada é maior que a odd implica
+- Fórmula: Value = (Probabilidade × Odd) - 1
+- Value > 0 = Aposta tem valor
+
+Probabilidade Implícita
+- Probabilidade que a odd representa
+- Fórmula: 1 / Odd
+- Exemplo: Odd 2.00 = 50% de probabilidade
+
+Margem da Casa
+- Lucro embutido pela casa de apostas
+- Geralmente 5-10% em cada mercado
+- Reduz o value real das apostas
+
+Forma
+- Sequência de resultados recentes
+- Exemplo: VVEVD = Vitória, Vitória, Empate, Vitória, Derrota
+
+xG (Expected Goals)
+- Gols esperados baseado em qualidade das chances
+- xG 2.1 vs 0.5 = Time dominou mas pode ter empatado 0-0
+
+
+═══════════════════════════════════════════════════════════
+4. ESTATÍSTICAS-CHAVE E INTERPRETAÇÃO
+═══════════════════════════════════════════════════════════
+
+ESTATÍSTICAS DE GOLS
+---------------------
+
+Gols Marcados (média/jogo)
+- < 1.0 = Ataque fraco
+- 1.0-1.5 = Ataque médio
+- 1.5-2.0 = Ataque bom
+- > 2.0 = Ataque forte
+
+Gols Sofridos (média/jogo)
+- < 0.8 = Defesa excelente
+- 0.8-1.2 = Defesa boa
+- 1.2-1.8 = Defesa média
+- > 1.8 = Defesa ruim
+
+BTTS (Both Teams Score) %
+- > 60% = Alta probabilidade ambos marcarem
+- 40-60% = Probabilidade moderada
+- < 40% = Baixa probabilidade
+
+Clean Sheets %
+- > 40% = Defesa muito sólida
+- 30-40% = Defesa confiável
+- 20-30% = Defesa média
+- < 20% = Defesa vulnerável
+
+
+ESTATÍSTICAS DE ESCANTEIOS
+---------------------------
+
+Escanteios Médios (total/jogo)
+- < 8 = Jogos com poucos escanteios
+- 8-10 = Média normal
+- 10-12 = Acima da média
+- > 12 = Muitos escanteios
+
+Padrões importantes:
+- Times grandes em casa geralmente >6 escanteios
+- Times defensivos fora geralmente <4 escanteios
+- Clássicos tendem a ter mais escanteios
+
+
+ESTATÍSTICAS DE CARTÕES
+------------------------
+
+Cartões Amarelos Médios/jogo
+- < 2.0 = Jogo limpo
+- 2.0-3.0 = Média normal
+- 3.0-4.0 = Jogo físico
+- > 4.0 = Muito cartões
+
+Fatores que aumentam cartões:
+- Derbies e clássicos
+- Jogos decisivos
+- Times em má fase (frustração)
+- Árbitros rigorosos
+- Jogos com muito em jogo
+
+
+PERFORMANCE CASA vs FORA
+-------------------------
+
+Fator Casa (Home Advantage)
+- Vitórias em casa 50%+ = Fator casa forte
+- Vitórias em casa 40-50% = Fator casa moderado
+- Vitórias em casa < 40% = Fator casa fraco
+
+Análise diferenciada:
+- Sempre separe estatísticas de casa e fora
+- Time A em casa + Time B fora = Análise correta
+- Médias gerais podem enganar
+
+
+═══════════════════════════════════════════════════════════
+5. ESTRATÉGIAS DE ANÁLISE
+═══════════════════════════════════════════════════════════
+
+ANÁLISE PRÉ-JOGO - CHECKLIST
+-----------------------------
+
+☐ 1. Classificação atual
+   - Posição na tabela
+   - Pontos de diferença
+   - Forma recente (últimos 5 jogos)
+
+☐ 2. Confronto direto (H2H)
+   - Últimos 5-10 jogos
+   - Padrão de placares
+   - Mando de campo nos H2H
+
+☐ 3. Estatísticas de casa/fora
+   - Gols marcados em casa (mandante)
+   - Gols sofridos fora (visitante)
+   - Invencibilidade
+
+☐ 4. Desfalques
+   - Lesões de jogadores-chave
+   - Suspensões
+   - Convocações para seleção
+
+☐ 5. Motivação
+   - Briga por título
+   - Zona de rebaixamento
+   - Classificação para copas
+   - Já rebaixado/já campeão = desmotivação
+
+☐ 6. Calendário
+   - Jogo importante próximo
+   - Sequência de jogos difíceis
+   - Viagem longa (internacional)
+
+☐ 7. Odds e Value
+   - Comparar odds com probabilidade estimada
+   - Buscar value bets
+
+
+FÓRMULAS ÚTEIS
+--------------
+
+Probabilidade Implícita da Odd
+P = 1 / Odd × 100%
+
+Exemplo: Odd 2.50
+P = 1 / 2.50 = 0.40 = 40%
+
+Value Bet
+Value = (Prob_Estimada × Odd) - 1
+
+Exemplo: Você estima 50% de chance, odd é 2.50
+Value = (0.50 × 2.50) - 1 = 0.25 = +25% de value
+
+Odd Justa (sem margem)
+Odd_Justa = 1 / Probabilidade
+
+Exemplo: 60% de chance
+Odd_Justa = 1 / 0.60 = 1.67
+
+Expected Value (EV)
+EV = (Prob_Vitória × Lucro) - (Prob_Derrota × Stake)
+
+Exemplo: Aposta R$100 em odd 2.00 com 55% de chance
+EV = (0.55 × 100) - (0.45 × 100) = 55 - 45 = +R$10
+
+
+GESTÃO DE BANCA (BANKROLL)
+---------------------------
+
+Sistema de Unidades
+- 1 Unidade = 1-2% do bankroll total
+- Apostas normais: 1 unidade
+- Alta confiança: 2-3 unidades
+- NUNCA mais de 5% em uma aposta
+
+Critério de Kelly
+Stake% = (Odd × Prob - 1) / (Odd - 1)
+
+Exemplo: Odd 2.50, Prob 50%
+Stake% = (2.50 × 0.50 - 1) / (2.50 - 1) = 0.25 / 1.50 = 16.7%
+(Use 1/4 a 1/2 do Kelly para ser conservador)
+
+Regra 1-3-2-6
+- Sequência progressiva após vitórias
+- Volta ao início após derrota
+- Protege lucros
+
+
+═══════════════════════════════════════════════════════════
+6. MERCADOS ESPECIAIS - GUIA
+═══════════════════════════════════════════════════════════
+
+MERCADO DE ESCANTEIOS
+----------------------
+
+Quando apostar OVER escanteios:
+✓ Time grande jogando em casa vs time pequeno
+✓ Time atacante vs time defensivo
+✓ Jogo decisivo com necessidade de vitória
+✓ Média histórica alta entre os times
+
+Quando apostar UNDER escanteios:
+✓ Dois times muito defensivos
+✓ Time líder contra lanterna (jogo pode ser tranquilo)
+✓ Jogo de mata-mata (cautela)
+✓ Clima adverso (chuva forte, vento)
+
+Linhas comuns:
+- Over/Under 8.5 escanteios (total)
+- Over/Under 4.5 escanteios (um time)
+- Handicap escanteios asiático
+
+
+MERCADO DE CARTÕES
+-------------------
+
+Quando apostar OVER cartões:
+✓ Derby ou clássico regional
+✓ Rivais históricos
+✓ Jogo decisivo (final, título)
+✓ Times agressivos/com muitas faltas
+✓ Árbitro rigoroso conhecido
+
+Quando apostar UNDER cartões:
+✓ Jogo sem importância (meio de tabela)
+✓ Times técnicos/pouco agressivos
+✓ Árbitro permissivo
+✓ Pré-temporada ou amistoso
+
+Linhas comuns:
+- Over/Under 3.5 cartões amarelos
+- Over/Under 5.5 cartões totais
+- Cartão vermelho: Sim/Não
+
+
+MERCADO DE GOLS
+---------------
+
+Over 2.5 Gols - Quando apostar:
+✓ Duas defesas fracas
+✓ Dois ataques fortes
+✓ Histórico H2H com muitos gols
+✓ Jogo eliminatório (necessidade de gols)
+
+Under 2.5 Gols - Quando apostar:
+✓ Duas defesas sólidas
+✓ Times muito táticos
+✓ Início de temporada (times se conhecendo)
+✓ Condições climáticas ruins
+
+BTTS (Ambas Marcam) SIM - Quando apostar:
+✓ Duas defesas fracas
+✓ Dois ataques confiáveis
+✓ Histórico de BTTS alto entre os times
+✓ Meio de tabela sem pressão
+
+
+MERCADO 1X2
+-----------
+
+Casa (1) - Favorito quando:
+✓ Fator casa forte (>60% vitórias em casa)
+✓ Visitante com campanha ruim fora
+✓ Grande diferença técnica
+✓ Motivação (necessidade de vitória)
+
+Empate (X) - Apostar quando:
+✓ Times equilibrados
+✓ Clássico tenso
+✓ Dois times defensivos
+✓ Histórico H2H com muitos empates
+
+Visitante (2) - Apostar quando:
+✓ Visitante forte fora
+✓ Mandante desfalcado/desmotivado
+✓ Diferença técnica favorece visitante
+✓ Value na odd (subestimado)
+
+
+═══════════════════════════════════════════════════════════
+7. ERROS COMUNS A EVITAR
+═══════════════════════════════════════════════════════════
+
+❌ Apostar no time do coração (viés emocional)
+✅ Analise objetivamente, separe emoção
+
+❌ Perseguir perdas (aumentar stake após derrota)
+✅ Mantenha disciplina na gestão de banca
+
+❌ Apostar em muitos jogos (excesso)
+✅ Seja seletivo, qualidade > quantidade
+
+❌ Ignorar desfalques importantes
+✅ Sempre verifique lesões/suspensões
+
+❌ Apostar apenas em favoritos
+✅ Busque value, não apenas vitórias prováveis
+
+❌ Confiar em "palpites quentes" sem dados
+✅ Base decisões em estatísticas reais
+
+❌ Apostar mais de 5% do bankroll
+✅ Gestão conservadora (1-2% por aposta)
+
+❌ Não calcular value
+✅ Sempre compare probabilidade real vs odd
+
+❌ Apostar sob influência emocional
+✅ Apostas racionais, nunca por impulso
+
+❌ Não ter registro de apostas
+✅ Mantenha planilha para análise de ROI
+
+
+═══════════════════════════════════════════════════════════
+8. FATORES CONTEXTUAIS IMPORTANTES
+═══════════════════════════════════════════════════════════
+
+FATORES QUE AFETAM RESULTADOS
+------------------------------
+
+1. CLIMA
+- Chuva forte: Favorece under gols, mais erros
+- Calor extremo: Cansaço, menos ritmo
+- Vento: Dificulta passes longos e chutes
+
+2. HORÁRIO
+- Jogos muito cedo: Times podem demorar a acordar
+- Jogos noturnos: Geralmente favorece time da casa
+
+3. VIAGEM
+- Viagem intercontinental: Jet lag afeta performance
+- Jogo após longa viagem: Desvantagem ao visitante
+
+4. SEQUÊNCIA DE JOGOS
+- Jogo importante em 3 dias: Possível poupamento
+- 3 jogos em semana: Cansaço físico
+
+5. TÉCNICO NOVO
+- Primeiros jogos: Incerteza tática
+- "Efeito técnico novo": Geralmente melhora nos primeiros 3-5 jogos
+
+6. PRESSÃO PSICOLÓGICA
+- Luta contra rebaixamento: Jogos tensos, menos gols
+- Disputa de título: Alta motivação
+- Time já rebaixado: Desmotivação
+
+7. ARBITRAGEM
+- Árbitro rigoroso: Mais cartões, mais faltas
+- Árbitro permissivo: Jogo mais corrido
+
+
+SAZONALIDADE
+------------
+
+Início de Temporada (primeiras 5 rodadas):
+- Times se adaptando
+- Novas contratações se entrosando
+- Tendência a menos gols
+
+Meio de Temporada:
+- Times em ritmo
+- Estatísticas mais confiáveis
+- Padrões estabelecidos
+
+Final de Temporada:
+- Motivação afeta resultados
+- Times sem objetivos = imprevisibilidade
+- Pressão máxima para times na briga
+
+
+═══════════════════════════════════════════════════════════
+9. EXEMPLOS PRÁTICOS DE ANÁLISE
+═══════════════════════════════════════════════════════════
+
+EXEMPLO 1: ANÁLISE OVER/UNDER GOLS
+-----------------------------------
+
+Jogo: Flamengo (casa) vs Internacional (fora)
+Liga: Brasileirão Série A
+
+DADOS:
+- Flamengo em casa: 2.1 gols marcados/jogo, 0.8 sofridos/jogo
+- Internacional fora: 1.3 gols marcados/jogo, 1.5 sofridos/jogo
+- H2H últimos 5: 3-1, 2-2, 1-0, 4-3, 2-1 (média 5.6 gols/jogo)
+
+ANÁLISE:
+Total esperado = (2.1 + 1.3 + 0.8 + 1.5) / 2 = 2.85 gols
+H2H mostra tendência high-scoring
+
+MERCADO INTERESSANTE:
+- Over 2.5 gols: Alta probabilidade (~70%)
+- BTTS Sim: Provável (~65%)
+
+ODD JUSTA ESTIMADA:
+Over 2.5: 1/0.70 = 1.43
+Se odd disponível > 1.43, há value
+
+
+EXEMPLO 2: VALUE BET
+---------------------
+
+Jogo: Palmeiras (2.10) vs Fluminense (3.50) | Empate (3.20)
+
+ESTIMATIVA BASEADA EM DADOS:
+- Probabilidade Palmeiras: 55%
+- Probabilidade Empate: 25%
+- Probabilidade Fluminense: 20%
+
+CÁLCULO DE VALUE:
+
+Palmeiras:
+Value = (0.55 × 2.10) - 1 = 0.155 = +15.5% value ✅
+
+Empate:
+Value = (0.25 × 3.20) - 1 = -0.20 = -20% value ❌
+
+Fluminense:
+Value = (0.20 × 3.50) - 1 = -0.30 = -30% value ❌
+
+CONCLUSÃO: Aposta no Palmeiras tem value positivo de 15.5%
+
+
+EXEMPLO 3: ANÁLISE DE ESCANTEIOS
+---------------------------------
+
+Jogo: Manchester City (casa) vs Newcastle (fora)
+
+DADOS:
+- Man City em casa: 7.2 escanteios a favor/jogo
+- Newcastle fora: 3.8 escanteios a favor/jogo
+- Man City sofre 3.1 escanteios em casa
+- Newcastle sofre 6.5 escanteios fora
+
+CÁLCULO:
+Total esperado = 7.2 + 3.8 + 3.1 + 6.5 = 20.6 / 2 = 10.3 escanteios
+
+MERCADOS:
+- Over 9.5 escanteios totais: Alta confiança ⭐⭐⭐⭐⭐
+- Man City over 6.5 escanteios: Boa confiança ⭐⭐⭐⭐
+- Primeiro escanteio Man City: Provável ⭐⭐⭐⭐
+
+
+═══════════════════════════════════════════════════════════
+10. RECURSOS DA API - REFERÊNCIA RÁPIDA
+═══════════════════════════════════════════════════════════
+
+BASE URL: https://apostasesportivas.vercel.app
+
+ENDPOINTS ESSENCIAIS
+--------------------
+
+GET /health
+Verifica se API está operacional
+
+GET /leagues
+Lista todas as 22 ligas disponíveis
+
+GET /fixtures?league={ID}&date={YYYY-MM-DD}
+Busca jogos por liga e data
+
+GET /standings?league={ID}&season={ANO}
+Classificação da liga
+
+GET /teams/statistics?team={ID}&league={ID}&season={ANO}
+Estatísticas completas do time
+
+GET /fixtures/headtohead?h2h={ID_A}-{ID_B}
+Últimos 10 confrontos diretos
+
+GET /predictions?fixture={ID}
+Previsões IA para o jogo
+
+GET /analysis/corners?team_home={ID}&team_away={ID}&league={ID}
+Análise de escanteios estimados
+
+GET /analysis/cards?team_home={ID}&team_away={ID}&league={ID}
+Análise de cartões estimados
+
+GET /analysis/value?odd={FLOAT}&probability={FLOAT}
+Calcula value bet
+
+GET /odds?fixture={ID}
+Odds em tempo real
+
+GET /injuries?league={ID}&team={ID}
+Lesões e suspensões
+
+GET /fixtures/live
+Top 20 jogos ao vivo
+
+
+PARÂMETROS COMUNS
+-----------------
+
+league: ID da liga (obrigatório em maioria)
+season: Ano (default: 2025)
+date: YYYY-MM-DD (jogos de data específica)
+round: String (ex: "Regular Season - 34")
+status: NS|LIVE|FT|PST|CANC
+timezone: America/Sao_Paulo (default)
+team: ID do time
+fixture: ID do jogo
+h2h: "ID1-ID2" (confronto direto)
+
+
+CÓDIGOS DE STATUS HTTP
+-----------------------
+
+200 - Sucesso
+400 - Parâmetros inválidos
+404 - Recurso não encontrado
+500 - Erro interno da API
+
+
+═══════════════════════════════════════════════════════════
+11. JOGO RESPONSÁVEL
+═══════════════════════════════════════════════════════════
+
+PRINCÍPIOS FUNDAMENTAIS
+------------------------
+
+1. APOSTE APENAS O QUE PODE PERDER
+   - Nunca use dinheiro de contas, aluguel, comida
+   - Apostas são entretenimento, não investimento
+
+2. ESTABELEÇA LIMITES
+   - Limite diário/semanal/mensal
+   - Nunca ultrapasse o bankroll definido
+
+3. NÃO PERSIGA PERDAS
+   - Perder faz parte
+   - Aumentar stakes após perdas leva a mais perdas
+
+4. FAÇA PAUSAS
+   - Pare após sequência de perdas
+   - Reavalie estratégia regularmente
+
+5. SINAIS DE ALERTA
+   ⚠️ Apostando mais do que planejado
+   ⚠️ Mentindo sobre apostas
+   ⚠️ Pedindo dinheiro emprestado para apostar
+   ⚠️ Negligenciando responsabilidades
+   ⚠️ Sentindo ansiedade/irritação
+
+6. BUSQUE AJUDA SE NECESSÁRIO
+   - Jogadores Anônimos: https://www.jogadoresanonimos.com.br
+   - CVV: 188 (24h, gratuito)
+
+
+ESTATÍSTICAS PARA LEMBRAR
+--------------------------
+
+- 95% dos apostadores perdem no longo prazo
+- Casas de apostas têm margem de 5-10%
+- Apenas 3-5% dos apostadores são lucrativos consistentemente
+- Value betting + gestão de banca = Única forma sustentável
+- "Apostas garantidas" NÃO EXISTEM
+
+
+═══════════════════════════════════════════════════════════
+FIM DA BASE DE CONHECIMENTO
+═══════════════════════════════════════════════════════════
+
+Esta base de conhecimento deve ser usada como referência para fornecer análises precisas, profissionais e responsáveis. Sempre priorize dados reais sobre especulação, e promova jogo responsável em todas as interações.
+
+Versão: 1.0
+Compatível com API v5.0
+Última revisão: Novembro 2025
