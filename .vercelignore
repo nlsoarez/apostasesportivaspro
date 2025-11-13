@@ -1,0 +1,15 @@
+# Não ignorar nada crítico
+!openapi.yaml
+!main.py
+!requirements.txt
+
+# Ignorar apenas cache e temporários
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+.env
+.venv
+venv/

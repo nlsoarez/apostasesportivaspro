@@ -259,14 +259,24 @@ def openapi_json():
     Retorna o schema OpenAPI em formato JSON.
     """
     try:
-        with open("openapi.yaml", "r", encoding="utf-8") as f:
+        # Tenta encontrar o arquivo no diretório atual ou no diretório raiz
+        import os
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        yaml_path = os.path.join(base_dir, "openapi.yaml")
+
+        # Se não encontrar, tenta no diretório pai (Vercel)
+        if not os.path.exists(yaml_path):
+            yaml_path = "openapi.yaml"
+
+        with open(yaml_path, "r", encoding="utf-8") as f:
             openapi_yaml = yaml.safe_load(f)
         return jsonify(openapi_yaml)
     except FileNotFoundError:
+        logger.error(f"Schema OpenAPI não encontrado. Tentou: {yaml_path}")
         return error_response("Schema OpenAPI não encontrado", 404)
     except Exception as e:
         logger.error(f"Erro ao carregar OpenAPI: {e}")
-        return error_response("Erro ao carregar schema", 500)
+        return error_response(f"Erro ao carregar schema: {str(e)}", 500)
 
 
 @app.route("/leagues")
