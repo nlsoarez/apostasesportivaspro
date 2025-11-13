@@ -6,9 +6,10 @@ import sys
 import os
 
 # Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, parent_dir)
 
+# Import the Flask app from main.py
 from main import app
 
-# Vercel expects the app to be available as 'app'
-# This is already done by importing from main
+# Vercel will automatically use the 'app' variable

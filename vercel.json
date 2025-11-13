@@ -1,19 +1,8 @@
 {
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.11",
-      "maxDuration": 20,
-      "memory": 512
-    }
-  },
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/api/index"
     }
-  ],
-  "env": {
-    "PYTHONUNBUFFERED": "1"
-  },
-  "regions": ["gru1"]
+  ]
 }
