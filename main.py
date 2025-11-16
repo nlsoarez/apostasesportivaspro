@@ -1521,10 +1521,30 @@ def analysis_complete():
         "season": season
     })
 
+    # Extrair apenas estatísticas essenciais (otimizado para ChatGPT)
     if stats_home and stats_home.get("response"):
-        complete_analysis["estatisticas"]["mandante"] = stats_home["response"]
+        home_stats = stats_home["response"]
+        complete_analysis["estatisticas"]["mandante"] = {
+            "forma": home_stats.get("form"),
+            "jogos_casa": home_stats.get("fixtures", {}).get("played", {}).get("home", 0),
+            "vitorias_casa": home_stats.get("fixtures", {}).get("wins", {}).get("home", 0),
+            "empates_casa": home_stats.get("fixtures", {}).get("draws", {}).get("home", 0),
+            "derrotas_casa": home_stats.get("fixtures", {}).get("loses", {}).get("home", 0),
+            "gols_marcados_casa": home_stats.get("goals", {}).get("for", {}).get("average", {}).get("home", "0"),
+            "gols_sofridos_casa": home_stats.get("goals", {}).get("against", {}).get("average", {}).get("home", "0")
+        }
+
     if stats_away and stats_away.get("response"):
-        complete_analysis["estatisticas"]["visitante"] = stats_away["response"]
+        away_stats = stats_away["response"]
+        complete_analysis["estatisticas"]["visitante"] = {
+            "forma": away_stats.get("form"),
+            "jogos_fora": away_stats.get("fixtures", {}).get("played", {}).get("away", 0),
+            "vitorias_fora": away_stats.get("fixtures", {}).get("wins", {}).get("away", 0),
+            "empates_fora": away_stats.get("fixtures", {}).get("draws", {}).get("away", 0),
+            "derrotas_fora": away_stats.get("fixtures", {}).get("loses", {}).get("away", 0),
+            "gols_marcados_fora": away_stats.get("goals", {}).get("for", {}).get("average", {}).get("away", "0"),
+            "gols_sofridos_fora": away_stats.get("goals", {}).get("against", {}).get("average", {}).get("away", "0")
+        }
 
     # ====== 2. BUSCAR CLASSIFICAÇÃO ======
     logger.info(f"[ANALYSIS COMPLETE] Buscando classificação da liga {league_id}")
@@ -1693,9 +1713,31 @@ def analysis_complete():
         "season": season
     })
 
+    # Otimizar lesões - apenas informações essenciais (máximo 5 por time)
+    injuries_home_list = []
+    injuries_away_list = []
+
+    if injuries_home and injuries_home.get("response"):
+        for injury in injuries_home["response"][:5]:  # Limitar a 5
+            injuries_home_list.append({
+                "jogador": injury.get("player", {}).get("name"),
+                "tipo": injury.get("player", {}).get("type"),
+                "motivo": injury.get("player", {}).get("reason")
+            })
+
+    if injuries_away and injuries_away.get("response"):
+        for injury in injuries_away["response"][:5]:  # Limitar a 5
+            injuries_away_list.append({
+                "jogador": injury.get("player", {}).get("name"),
+                "tipo": injury.get("player", {}).get("type"),
+                "motivo": injury.get("player", {}).get("reason")
+            })
+
     complete_analysis["lesoes"] = {
-        "mandante": injuries_home.get("response", []) if injuries_home else [],
-        "visitante": injuries_away.get("response", []) if injuries_away else []
+        "mandante": injuries_home_list,
+        "visitante": injuries_away_list,
+        "total_mandante": len(injuries_home_list),
+        "total_visitante": len(injuries_away_list)
     }
 
     # ====== 8. PREVISÕES IA (se fixture fornecido) ======
@@ -1703,7 +1745,15 @@ def analysis_complete():
         logger.info(f"[ANALYSIS COMPLETE] Buscando previsões para fixture {fixture_id}")
         predictions, _ = call_api_football("/predictions", {"fixture": fixture_id})
         if predictions and predictions.get("response"):
-            complete_analysis["predicoes"] = predictions["response"][0]
+            pred = predictions["response"][0]
+            # Extrair apenas dados essenciais das previsões
+            complete_analysis["predicoes"] = {
+                "vencedor": pred.get("predictions", {}).get("winner", {}).get("name"),
+                "percentual_casa": pred.get("predictions", {}).get("percent", {}).get("home"),
+                "percentual_empate": pred.get("predictions", {}).get("percent", {}).get("draw"),
+                "percentual_fora": pred.get("predictions", {}).get("percent", {}).get("away"),
+                "conselhos": pred.get("predictions", {}).get("advice", "")
+            }
 
     logger.info("[ANALYSIS COMPLETE] Análise completa gerada com sucesso")
     return jsonify(complete_analysis)
