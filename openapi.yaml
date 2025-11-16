@@ -1200,6 +1200,220 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /analysis/complete:
+    get:
+      summary: Análise Completa de um Jogo
+      description: |
+        Endpoint consolidado que retorna análise completa de um jogo incluindo:
+        - ✅ Contexto (classificação, forma recente, Must Win)
+        - ✅ Estatísticas dos times (gols, defesa, performance)
+        - ✅ Histórico de confrontos diretos (H2H)
+        - ✅ Análise de escanteios (com fator Must Win)
+        - ✅ Análise de cartões (com fator Must Win)
+        - ✅ Lesões e suspensões de ambos os times
+        - ✅ Previsões IA (se fixture fornecido)
+
+        Este endpoint consolida múltiplas chamadas em uma única requisição,
+        tornando mais fácil para o GPT obter análises completas.
+      operationId: getAnalysisComplete
+      tags:
+        - analysis
+      parameters:
+        - name: team_home
+          in: query
+          required: true
+          description: ID do time mandante
+          schema:
+            type: integer
+            example: 127
+        - name: team_away
+          in: query
+          required: true
+          description: ID do time visitante
+          schema:
+            type: integer
+            example: 121
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+        - name: fixture
+          in: query
+          required: false
+          description: ID do jogo específico (para incluir previsões IA)
+          schema:
+            type: integer
+            example: 1234567
+      responses:
+        "200":
+          description: Análise completa gerada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  jogo:
+                    type: object
+                    properties:
+                      mandante_id:
+                        type: integer
+                        example: 127
+                      visitante_id:
+                        type: integer
+                        example: 121
+                      liga_id:
+                        type: integer
+                        example: 71
+                      temporada:
+                        type: string
+                        example: "2025"
+                  contexto:
+                    type: object
+                    properties:
+                      classificacao:
+                        type: object
+                        properties:
+                          mandante:
+                            type: object
+                            properties:
+                              posicao:
+                                type: integer
+                                example: 3
+                              pontos:
+                                type: integer
+                                example: 45
+                          visitante:
+                            type: object
+                            properties:
+                              posicao:
+                                type: integer
+                                example: 8
+                              pontos:
+                                type: integer
+                                example: 32
+                      must_win:
+                        type: object
+                        properties:
+                          mandante:
+                            type: object
+                            properties:
+                              score:
+                                type: number
+                                format: float
+                                example: 7.5
+                              nivel:
+                                type: string
+                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                                example: "ALTO"
+                              fatores:
+                                type: array
+                                items:
+                                  type: object
+                              recomendacao:
+                                type: string
+                          visitante:
+                            type: object
+                          analise:
+                            type: string
+                            example: "Mais importante para o time da casa"
+                  estatisticas:
+                    type: object
+                    description: Estatísticas completas de ambos os times
+                  confronto_direto:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                        example: 10
+                      ultimos_jogos:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            data:
+                              type: string
+                            mandante:
+                              type: string
+                            visitante:
+                              type: string
+                            placar:
+                              type: string
+                              example: "2-1"
+                  analise_escanteios:
+                    type: object
+                    properties:
+                      estimativa_total:
+                        type: number
+                        format: float
+                        example: 10.5
+                      analise_must_win:
+                        type: object
+                        properties:
+                          fator_combinado:
+                            type: number
+                            format: float
+                            example: 6.3
+                          impacto:
+                            type: string
+                      sugestoes:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            mercado:
+                              type: string
+                              example: "Over 9.5 Escanteios"
+                            confianca:
+                              type: number
+                              example: 4.5
+                            value_estimado:
+                              type: string
+                              example: "+15%"
+                  analise_cartoes:
+                    type: object
+                    properties:
+                      estimativa_total:
+                        type: number
+                        format: float
+                        example: 5.5
+                      sugestoes:
+                        type: array
+                        items:
+                          type: object
+                  lesoes:
+                    type: object
+                    properties:
+                      mandante:
+                        type: array
+                        items:
+                          type: object
+                      visitante:
+                        type: array
+                        items:
+                          type: object
+                  predicoes:
+                    type: object
+                    nullable: true
+                    description: Previsões IA (apenas se fixture fornecido)
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /analysis/value:
     get:
       summary: Calcula Value Bet

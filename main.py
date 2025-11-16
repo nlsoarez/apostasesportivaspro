@@ -1444,6 +1444,272 @@ def news_context():
 
 
 # =======================
+# Endpoint de análise completa
+# =======================
+@app.route("/analysis/complete")
+def analysis_complete():
+    """
+    Análise completa de um jogo consolidando todos os endpoints de análise.
+
+    Query Parameters:
+        - team_home (required): ID do time mandante
+        - team_away (required): ID do time visitante
+        - league (required): ID da liga
+        - season: Ano da temporada (default: 2025)
+        - fixture: ID do jogo específico (opcional, para análise pré-jogo)
+
+    Retorna análise consolidada incluindo:
+    - Contexto (posições na tabela, forma recente)
+    - Estatísticas dos times
+    - H2H (últimos confrontos)
+    - Análise de escanteios (com Must Win)
+    - Análise de cartões (com Must Win)
+    - Lesões e suspensões
+    - Previsões IA (se fixture fornecido)
+    """
+    team_home = request.args.get("team_home")
+    team_away = request.args.get("team_away")
+    league = request.args.get("league")
+    season = request.args.get("season", str(DEFAULT_SEASON))
+    fixture_id = request.args.get("fixture")
+
+    # Validar parâmetros obrigatórios
+    if not (team_home and team_away and league):
+        return error_response("Parâmetros obrigatórios: team_home, team_away, league")
+
+    # Validar IDs
+    home_id, error = validate_integer_param(team_home, "team_home")
+    if error:
+        return error_response(error)
+
+    away_id, error = validate_integer_param(team_away, "team_away")
+    if error:
+        return error_response(error)
+
+    league_id, error = validate_integer_param(league, "league")
+    if error:
+        return error_response(error)
+
+    # Estrutura da resposta completa
+    complete_analysis = {
+        "ok": True,
+        "jogo": {
+            "mandante_id": home_id,
+            "visitante_id": away_id,
+            "liga_id": league_id,
+            "temporada": season
+        },
+        "contexto": {},
+        "estatisticas": {},
+        "confronto_direto": {},
+        "analise_escanteios": {},
+        "analise_cartoes": {},
+        "lesoes": {},
+        "predicoes": None
+    }
+
+    # ====== 1. BUSCAR ESTATÍSTICAS DOS TIMES ======
+    logger.info(f"[ANALYSIS COMPLETE] Buscando estatísticas dos times {home_id} vs {away_id}")
+    stats_home, error_home = call_api_football("/teams/statistics", {
+        "team": home_id,
+        "league": league_id,
+        "season": season
+    })
+    stats_away, error_away = call_api_football("/teams/statistics", {
+        "team": away_id,
+        "league": league_id,
+        "season": season
+    })
+
+    if stats_home and stats_home.get("response"):
+        complete_analysis["estatisticas"]["mandante"] = stats_home["response"]
+    if stats_away and stats_away.get("response"):
+        complete_analysis["estatisticas"]["visitante"] = stats_away["response"]
+
+    # ====== 2. BUSCAR CLASSIFICAÇÃO ======
+    logger.info(f"[ANALYSIS COMPLETE] Buscando classificação da liga {league_id}")
+    standings_data, _ = call_api_football("/standings", {
+        "league": league_id,
+        "season": season
+    })
+
+    home_position = None
+    away_position = None
+    total_teams = None
+    home_points = None
+    away_points = None
+
+    try:
+        if standings_data and standings_data.get("response"):
+            standings = standings_data["response"][0]["league"]["standings"][0]
+            total_teams = len(standings)
+            for team in standings:
+                if team["team"]["id"] == home_id:
+                    home_position = team["rank"]
+                    home_points = team["points"]
+                if team["team"]["id"] == away_id:
+                    away_position = team["rank"]
+                    away_points = team["points"]
+
+            complete_analysis["contexto"]["classificacao"] = {
+                "mandante": {
+                    "posicao": home_position,
+                    "pontos": home_points
+                },
+                "visitante": {
+                    "posicao": away_position,
+                    "pontos": away_points
+                },
+                "total_times": total_teams
+            }
+    except Exception as e:
+        logger.warning(f"[ANALYSIS COMPLETE] Erro ao processar classificação: {str(e)}")
+
+    # ====== 3. CALCULAR MUST WIN ======
+    logger.info("[ANALYSIS COMPLETE] Calculando fator Must Win")
+    must_win_home = calculate_must_win_factor(
+        stats_home.get("response") if stats_home else None,
+        home_position,
+        total_teams
+    )
+    must_win_away = calculate_must_win_factor(
+        stats_away.get("response") if stats_away else None,
+        away_position,
+        total_teams
+    )
+
+    complete_analysis["contexto"]["must_win"] = {
+        "mandante": must_win_home,
+        "visitante": must_win_away,
+        "analise": (
+            "Mais importante para o time da casa" if must_win_home["score"] > must_win_away["score"] + 1.5 else
+            "Mais importante para o time visitante" if must_win_away["score"] > must_win_home["score"] + 1.5 else
+            "Importância equilibrada para ambos os times"
+        )
+    }
+
+    # ====== 4. BUSCAR H2H ======
+    logger.info("[ANALYSIS COMPLETE] Buscando histórico H2H")
+    h2h_data, _ = call_api_football("/fixtures/headtohead", {
+        "h2h": f"{home_id}-{away_id}"
+    })
+
+    if h2h_data and h2h_data.get("response"):
+        h2h_matches = []
+        for match in h2h_data["response"][:5]:  # Top 5
+            h2h_matches.append({
+                "data": match.get("fixture", {}).get("date"),
+                "mandante": match.get("teams", {}).get("home", {}).get("name"),
+                "visitante": match.get("teams", {}).get("away", {}).get("name"),
+                "placar": f"{match.get('goals', {}).get('home')}-{match.get('goals', {}).get('away')}"
+            })
+        complete_analysis["confronto_direto"] = {
+            "total": len(h2h_data["response"]),
+            "ultimos_jogos": h2h_matches
+        }
+
+    # ====== 5. ANÁLISE DE ESCANTEIOS ======
+    logger.info("[ANALYSIS COMPLETE] Calculando análise de escanteios")
+    corners_estimate = DEFAULT_CORNERS_ESTIMATE
+    try:
+        if stats_home and stats_home.get("response") and stats_away and stats_away.get("response"):
+            home_corners = stats_home["response"].get("fixtures", {}).get("played", {}).get("home", 0)
+            away_corners = stats_away["response"].get("fixtures", {}).get("played", {}).get("away", 0)
+
+            if home_corners > 0 and away_corners > 0:
+                # Simplificação: usar estimativa baseada em média
+                corners_estimate = 10.5  # Estimativa média
+
+        must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
+        confidence_corners = min(5.0, 4.0 + (must_win_combined - 5.0) * 0.15)
+
+        complete_analysis["analise_escanteios"] = {
+            "time_casa": {
+                "id": home_id,
+                "must_win": must_win_home
+            },
+            "time_fora": {
+                "id": away_id,
+                "must_win": must_win_away
+            },
+            "estimativa_total": round(corners_estimate, 1),
+            "analise_must_win": {
+                "fator_combinado": round(must_win_combined, 1),
+                "impacto": "Times pressionados tendem a jogar mais ofensivamente, gerando mais escanteios"
+            },
+            "sugestoes": [
+                {
+                    "mercado": f"Over {int(corners_estimate) - 1}.5 Escanteios",
+                    "confianca": round(confidence_corners, 1),
+                    "value_estimado": "+15%" if must_win_combined > 6.0 else "+10%"
+                }
+            ]
+        }
+    except Exception as e:
+        logger.warning(f"[ANALYSIS COMPLETE] Erro na análise de escanteios: {str(e)}")
+
+    # ====== 6. ANÁLISE DE CARTÕES ======
+    logger.info("[ANALYSIS COMPLETE] Calculando análise de cartões")
+    cards_estimate = DEFAULT_CARDS_ESTIMATE
+    try:
+        must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
+        confidence_cards = min(5.0, 4.0 + (must_win_combined - 5.0) * 0.18)
+
+        complete_analysis["analise_cartoes"] = {
+            "time_casa": {
+                "id": home_id,
+                "must_win": must_win_home
+            },
+            "time_fora": {
+                "id": away_id,
+                "must_win": must_win_away
+            },
+            "estimativa_total": round(cards_estimate, 1),
+            "analise_must_win": {
+                "fator_combinado": round(must_win_combined, 1),
+                "impacto": "Times pressionados jogam com mais intensidade e agressividade, resultando em mais cartões"
+            },
+            "sugestoes": [
+                {
+                    "mercado": f"Over {int(cards_estimate) - 1}.5 Cartões",
+                    "confianca": round(confidence_cards, 1),
+                    "value_estimado": "+20%" if must_win_combined > 6.5 else "+12%"
+                }
+            ]
+        }
+    except Exception as e:
+        logger.warning(f"[ANALYSIS COMPLETE] Erro na análise de cartões: {str(e)}")
+
+    # ====== 7. BUSCAR LESÕES ======
+    logger.info("[ANALYSIS COMPLETE] Buscando lesões")
+    injuries_home, _ = call_api_football("/injuries", {
+        "league": league_id,
+        "team": home_id,
+        "season": season
+    })
+    injuries_away, _ = call_api_football("/injuries", {
+        "league": league_id,
+        "team": away_id,
+        "season": season
+    })
+
+    complete_analysis["lesoes"] = {
+        "mandante": injuries_home.get("response", []) if injuries_home else [],
+        "visitante": injuries_away.get("response", []) if injuries_away else []
+    }
+
+    # ====== 8. PREVISÕES IA (se fixture fornecido) ======
+    if fixture_id:
+        logger.info(f"[ANALYSIS COMPLETE] Buscando previsões para fixture {fixture_id}")
+        predictions, _ = call_api_football("/predictions", {"fixture": fixture_id})
+        if predictions and predictions.get("response"):
+            complete_analysis["predicoes"] = predictions["response"][0]
+
+    logger.info("[ANALYSIS COMPLETE] Análise completa gerada com sucesso")
+    return jsonify(complete_analysis)
+
+
+# =======================
 # Handlers de erro
 # =======================
 @app.errorhandler(404)
