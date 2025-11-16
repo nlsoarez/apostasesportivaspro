@@ -134,8 +134,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
         - name: status
           in: query
           required: false
@@ -316,8 +316,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Análise completa do jogo ao vivo
@@ -662,8 +662,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Tabela de classificação
@@ -717,8 +717,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Estatísticas do time
@@ -758,8 +758,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Lista de artilheiros
@@ -808,8 +808,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Lista de lesões/suspensões
@@ -958,8 +958,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Análise de escanteios gerada com fator Must Win
@@ -1104,8 +1104,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
       responses:
         "200":
           description: Análise de cartões gerada com fator Must Win
@@ -1235,8 +1235,8 @@ paths:
           description: Ano da temporada
           schema:
             type: integer
-            default: 2025
-            example: 2025
+            default: 2024
+            example: 2024
         - name: fixture
           in: query
           required: false
@@ -1269,7 +1269,7 @@ paths:
                         example: 71
                       temporada:
                         type: string
-                        example: "2025"
+                        example: "2024"
                   contexto:
                     type: object
                     properties:

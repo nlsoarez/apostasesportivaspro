@@ -109,7 +109,7 @@ Fatores:
 **USE `/analysis/complete` para obter tudo em uma chamada:**
 
 ```
-GET /analysis/complete?team_home=127&team_away=121&league=71&season=2025
+GET /analysis/complete?team_home=127&team_away=121&league=71&season=2024
 ```
 
 Este endpoint já retorna:
