@@ -574,6 +574,73 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /leagues:
+    get:
+      summary: Ligas suportadas pela API
+      description: |
+        Lista todas as ligas disponíveis organizadas por categoria:
+        - Brasil (Brasileirão, Copa do Brasil, Estaduais)
+        - Europa (Premier League, La Liga, Serie A, Bundesliga, etc)
+        - Internacional (Champions, Europa League, Libertadores)
+        - Américas (MLS, Liga MX)
+        - Mundial (Copa do Mundo, Euro)
+      operationId: getLeagues
+      tags:
+        - health
+      responses:
+        "200":
+          description: Lista de ligas suportadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  total:
+                    type: integer
+                    example: 25
+                  leagues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 71
+                        name:
+                          type: string
+                          example: "Brasileirão Série A"
+                  categories:
+                    type: object
+                    properties:
+                      brasil:
+                        type: array
+                        items:
+                          type: integer
+                        example: [71, 72, 73, 75, 76]
+                      europa:
+                        type: array
+                        items:
+                          type: integer
+                        example: [39, 140, 135, 78, 61, 94, 88]
+                      internacional:
+                        type: array
+                        items:
+                          type: integer
+                        example: [2, 3, 848, 13, 11]
+                      americas:
+                        type: array
+                        items:
+                          type: integer
+                        example: [253, 128]
+                      mundial:
+                        type: array
+                        items:
+                          type: integer
+                        example: [1, 960]
+
   /standings:
     get:
       summary: Classificação da liga
