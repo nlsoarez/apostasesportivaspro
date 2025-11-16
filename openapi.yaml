@@ -1203,18 +1203,7 @@ paths:
   /analysis/complete:
     get:
       summary: Análise Completa de um Jogo
-      description: |
-        Endpoint consolidado que retorna análise completa de um jogo incluindo:
-        - ✅ Contexto (classificação, forma recente, Must Win)
-        - ✅ Estatísticas dos times (gols, defesa, performance)
-        - ✅ Histórico de confrontos diretos (H2H)
-        - ✅ Análise de escanteios (com fator Must Win)
-        - ✅ Análise de cartões (com fator Must Win)
-        - ✅ Lesões e suspensões de ambos os times
-        - ✅ Previsões IA (se fixture fornecido)
-
-        Este endpoint consolida múltiplas chamadas em uma única requisição,
-        tornando mais fácil para o GPT obter análises completas.
+      description: Retorna análise consolidada incluindo contexto, estatísticas, H2H, escanteios, cartões, lesões e previsões com fator Must Win. Consolida múltiplas chamadas em uma única requisição.
       operationId: getAnalysisComplete
       tags:
         - analysis
