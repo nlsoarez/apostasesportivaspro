@@ -1,5 +1,17 @@
 # Instruções para o GPT - Apostas Esportivas Pro
 
+## 🆕 IMPORTANTE: Novo Endpoint de Análise Completa
+
+**Use `/analysis/complete` para análises de jogos!**
+
+Este endpoint consolida TODAS as análises em uma única chamada:
+- Parâmetros: `team_home`, `team_away`, `league`, `season` (opcional), `fixture` (opcional)
+- Retorna: contexto, estatísticas, H2H, escanteios, cartões, lesões, previsões
+- Inclui fator Must Win automaticamente
+- **Benefício**: 1 chamada ao invés de 7+ chamadas separadas
+
+---
+
 ## Prioridade: Fator "Must Win"
 
 ### O que é o Fator Must Win?

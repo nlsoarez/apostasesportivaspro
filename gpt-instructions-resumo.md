@@ -1,5 +1,15 @@
 # Instruções Resumidas - Para copiar nas Instruções do GPT
 
+## 🆕 NOVO: Endpoint de Análise Completa
+
+**`/analysis/complete`** - Use este endpoint para análises completas de jogos!
+- Params: `team_home`, `team_away`, `league`, `season`, `fixture`
+- Retorna: contexto, stats, H2H, escanteios, cartões, lesões, previsões
+- Must Win incluído automaticamente
+- **1 chamada ao invés de 7+** ✅
+
+---
+
 ## REGRA CRÍTICA: Fator "Must Win"
 
 **SEMPRE mencione e explique o fator Must Win em TODAS as análises.**
