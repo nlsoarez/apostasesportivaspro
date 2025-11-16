@@ -282,6 +282,365 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /fixtures/live/analysis:
+    get:
+      summary: Análise completa de jogo ao vivo
+      description: |
+        Análise profissional de jogo em andamento incluindo:
+        - Estatísticas em tempo real (posse, chutes, escanteios, cartões)
+        - Fator Must Win de ambos os times
+        - Análise de momento do jogo
+        - Sugestões contextualizadas de apostas ao vivo
+      operationId: getLiveAnalysis
+      tags:
+        - fixtures
+        - analysis
+      parameters:
+        - name: fixture
+          in: query
+          required: true
+          description: ID do jogo ao vivo
+          schema:
+            type: integer
+            example: 1234567
+        - name: league
+          in: query
+          required: true
+          description: ID da liga
+          schema:
+            type: integer
+            example: 71
+        - name: season
+          in: query
+          required: false
+          description: Ano da temporada
+          schema:
+            type: integer
+            default: 2025
+            example: 2025
+      responses:
+        "200":
+          description: Análise completa do jogo ao vivo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  jogo:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1234567
+                      status:
+                        type: string
+                        example: "Match Finished"
+                      minuto:
+                        type: integer
+                        example: 67
+                      momento_jogo:
+                        type: string
+                        example: "Reta final - Momento decisivo"
+                      mandante:
+                        type: string
+                        example: "Flamengo"
+                      visitante:
+                        type: string
+                        example: "Palmeiras"
+                      placar:
+                        type: object
+                        properties:
+                          atual:
+                            type: string
+                            example: "2x1"
+                          halftime:
+                            type: string
+                            example: "1x0"
+                  estatisticas_ao_vivo:
+                    type: object
+                    properties:
+                      mandante:
+                        type: object
+                      visitante:
+                        type: object
+                  must_win:
+                    type: object
+                    properties:
+                      mandante:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                            format: float
+                            example: 7.5
+                            description: "Score de 0-10 indicando pressão por resultado"
+                          nivel:
+                            type: string
+                            enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                            example: "ALTO"
+                          fatores:
+                            type: array
+                            items:
+                              type: object
+                          recomendacao:
+                            type: string
+                            example: "Time precisa pontuar. Fator motivacional significativo."
+                      visitante:
+                        type: object
+                        properties:
+                          score:
+                            type: number
+                            format: float
+                            example: 5.0
+                          nivel:
+                            type: string
+                            enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                            example: "MODERADO"
+                      analise:
+                        type: string
+                        example: "Mais importante para Flamengo"
+                  sugestoes_ao_vivo:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tipo:
+                          type: string
+                          example: "Escanteios"
+                        mercado:
+                          type: string
+                          example: "Projeção: 11.2 escanteios no jogo"
+                        justificativa:
+                          type: string
+                          example: "7 escanteios em 67' (ritmo de 0.10/min)"
+                        confianca:
+                          type: integer
+                          minimum: 1
+                          maximum: 5
+                          example: 4
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Jogo não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /fixtures/live/minute-by-minute:
+    get:
+      summary: Análise minuto a minuto do jogo
+      description: |
+        Timeline completa de eventos e análise por períodos:
+        - Todos os eventos (gols, cartões, substituições)
+        - Análise por períodos (0-15, 16-30, 31-45, 46-60, 61-75, 76-90+)
+        - Identificação de momentos-chave
+        - Padrões de jogo identificados
+      operationId: getMinuteByMinuteAnalysis
+      tags:
+        - fixtures
+        - analysis
+      parameters:
+        - name: fixture
+          in: query
+          required: true
+          description: ID do jogo
+          schema:
+            type: integer
+            example: 1234567
+      responses:
+        "200":
+          description: Análise minuto a minuto completa
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  jogo:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1234567
+                      mandante:
+                        type: string
+                        example: "Flamengo"
+                      visitante:
+                        type: string
+                        example: "Palmeiras"
+                      status:
+                        type: string
+                        example: "Match Finished"
+                  timeline_completa:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        minuto:
+                          type: integer
+                          example: 23
+                        minuto_display:
+                          type: string
+                          example: "23'"
+                        tipo:
+                          type: string
+                          enum: ["Goal", "Card", "subst"]
+                          example: "Goal"
+                        detalhe:
+                          type: string
+                          example: "Normal Goal"
+                        time:
+                          type: string
+                          example: "Flamengo"
+                        jogador:
+                          type: string
+                          example: "Pedro"
+                  analise_por_periodos:
+                    type: object
+                    properties:
+                      "0-15":
+                        type: object
+                        properties:
+                          gols:
+                            type: integer
+                            example: 1
+                          cartoes:
+                            type: integer
+                            example: 0
+                          eventos:
+                            type: array
+                            items:
+                              type: object
+                  momentos_chave:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        periodo:
+                          type: string
+                          example: "0-15"
+                        descricao:
+                          type: string
+                          example: "Início elétrico com 1 gol(s)"
+                        impacto:
+                          type: string
+                          enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                          example: "ALTO"
+                  padroes_identificados:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tipo:
+                          type: string
+                          example: "Gols"
+                        padrao:
+                          type: string
+                          example: "Jogo abriu no segundo tempo"
+                        dados:
+                          type: string
+                          example: "1 no 1ºT vs 2 no 2ºT"
+                  resumo:
+                    type: object
+                    properties:
+                      total_eventos:
+                        type: integer
+                        example: 23
+                      total_gols:
+                        type: integer
+                        example: 3
+                      total_cartoes:
+                        type: integer
+                        example: 5
+                      total_substituicoes:
+                        type: integer
+                        example: 6
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Jogo não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /leagues:
+    get:
+      summary: Ligas suportadas pela API
+      description: |
+        Lista todas as ligas disponíveis organizadas por categoria:
+        - Brasil (Brasileirão, Copa do Brasil, Estaduais)
+        - Europa (Premier League, La Liga, Serie A, Bundesliga, etc)
+        - Internacional (Champions, Europa League, Libertadores)
+        - Américas (MLS, Liga MX)
+        - Mundial (Copa do Mundo, Euro)
+      operationId: getLeagues
+      tags:
+        - health
+      responses:
+        "200":
+          description: Lista de ligas suportadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  total:
+                    type: integer
+                    example: 25
+                  leagues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 71
+                        name:
+                          type: string
+                          example: "Brasileirão Série A"
+                  categories:
+                    type: object
+                    properties:
+                      brasil:
+                        type: array
+                        items:
+                          type: integer
+                        example: [71, 72, 73, 75, 76]
+                      europa:
+                        type: array
+                        items:
+                          type: integer
+                        example: [39, 140, 135, 78, 61, 94, 88]
+                      internacional:
+                        type: array
+                        items:
+                          type: integer
+                        example: [2, 3, 848, 13, 11]
+                      americas:
+                        type: array
+                        items:
+                          type: integer
+                        example: [253, 128]
+                      mundial:
+                        type: array
+                        items:
+                          type: integer
+                        example: [1, 960]
+
   /standings:
     get:
       summary: Classificação da liga
@@ -561,12 +920,13 @@ paths:
 
   /analysis/corners:
     get:
-      summary: Análise de escanteios
+      summary: Análise de escanteios com fator Must Win
       description: |
         Calcula estimativa de escanteios baseado em:
         - Média de escanteios a favor (casa)
         - Média de escanteios a favor (fora)
-        - Gera sugestões de apostas com confiança
+        - Fator Must Win (pressão por resultado)
+        - Gera sugestões ajustadas pelo contexto motivacional
       operationId: getAnalysisCorners
       tags:
         - analysis
@@ -602,7 +962,7 @@ paths:
             example: 2025
       responses:
         "200":
-          description: Análise de escanteios gerada
+          description: Análise de escanteios gerada com fator Must Win
           content:
             application/json:
               schema:
@@ -620,16 +980,67 @@ paths:
                           id:
                             type: integer
                             example: 127
+                          must_win:
+                            type: object
+                            properties:
+                              score:
+                                type: number
+                                format: float
+                                example: 7.5
+                                description: "Score de 0-10 indicando pressão por resultado"
+                              nivel:
+                                type: string
+                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                                example: "ALTO"
+                              fatores:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    fator:
+                                      type: string
+                                      example: "Zona de Rebaixamento"
+                                    impacto:
+                                      type: string
+                                      example: "CRÍTICO"
+                                    descricao:
+                                      type: string
+                                      example: "Time na 18ª posição (zona de rebaixamento)"
+                              recomendacao:
+                                type: string
+                                example: "Time precisa pontuar. Fator motivacional significativo."
                       time_fora:
                         type: object
                         properties:
                           id:
                             type: integer
                             example: 121
+                          must_win:
+                            type: object
+                            properties:
+                              score:
+                                type: number
+                                format: float
+                                example: 5.0
+                              nivel:
+                                type: string
+                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                                example: "MODERADO"
                       estimativa_total:
                         type: number
                         format: float
                         example: 10.5
+                      analise_must_win:
+                        type: object
+                        properties:
+                          impacto:
+                            type: string
+                            example: "Times pressionados tendem a jogar mais ofensivamente, gerando mais escanteios"
+                          fator_combinado:
+                            type: number
+                            format: float
+                            example: 6.3
+                            description: "Média do fator Must Win dos dois times"
                       sugestoes:
                         type: array
                         items:
@@ -639,10 +1050,12 @@ paths:
                               type: string
                               example: "Over 9.5 Escanteios Totais"
                             confianca:
-                              type: integer
+                              type: number
+                              format: float
                               minimum: 1
                               maximum: 5
-                              example: 5
+                              example: 4.8
+                              description: "Confiança ajustada pelo fator Must Win"
                             value_estimado:
                               type: string
                               example: "+20%"
@@ -653,12 +1066,13 @@ paths:
 
   /analysis/cards:
     get:
-      summary: Análise de cartões
+      summary: Análise de cartões com fator Must Win
       description: |
         Calcula estimativa de cartões amarelos baseado em:
         - Média de cartões em casa
         - Média de cartões fora
-        - Gera sugestões de apostas
+        - Fator Must Win (pressão por resultado)
+        - Gera sugestões ajustadas pela intensidade do jogo
       operationId: getAnalysisCards
       tags:
         - analysis
@@ -694,7 +1108,7 @@ paths:
             example: 2025
       responses:
         "200":
-          description: Análise de cartões gerada
+          description: Análise de cartões gerada com fator Must Win
           content:
             application/json:
               schema:
@@ -706,10 +1120,63 @@ paths:
                   analise_cartoes:
                     type: object
                     properties:
+                      time_casa:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 127
+                          must_win:
+                            type: object
+                            properties:
+                              score:
+                                type: number
+                                format: float
+                                example: 7.5
+                                description: "Score de 0-10 indicando pressão por resultado"
+                              nivel:
+                                type: string
+                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                                example: "ALTO"
+                              fatores:
+                                type: array
+                                items:
+                                  type: object
+                              recomendacao:
+                                type: string
+                                example: "Time precisa pontuar. Fator motivacional significativo."
+                      time_fora:
+                        type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 121
+                          must_win:
+                            type: object
+                            properties:
+                              score:
+                                type: number
+                                format: float
+                                example: 5.0
+                              nivel:
+                                type: string
+                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
+                                example: "MODERADO"
                       estimativa_total:
                         type: number
                         format: float
                         example: 5.5
+                      analise_must_win:
+                        type: object
+                        properties:
+                          impacto:
+                            type: string
+                            example: "Times pressionados jogam com mais intensidade e agressividade, resultando em mais cartões"
+                          fator_combinado:
+                            type: number
+                            format: float
+                            example: 6.3
+                            description: "Média do fator Must Win dos dois times"
                       sugestoes:
                         type: array
                         items:
@@ -719,10 +1186,12 @@ paths:
                               type: string
                               example: "Over 5.5 Cartões Totais"
                             confianca:
-                              type: integer
+                              type: number
+                              format: float
                               minimum: 1
                               maximum: 5
-                              example: 5
+                              example: 4.9
+                              description: "Confiança ajustada pelo fator Must Win"
                             value_estimado:
                               type: string
                               example: "+25%"
