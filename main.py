@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Constantes da aplicação
 # =======================
 API_VERSION = "5.0"
-DEFAULT_SEASON = 2025
+DEFAULT_SEASON = 2024  # Atualizado: Brasileirão 2024 ainda em andamento
 DEFAULT_TIMEZONE = "America/Sao_Paulo"
 DEFAULT_NEWS_DAYS = 3
 MAX_NEWS_DAYS = 30
@@ -1495,7 +1495,9 @@ def analysis_complete():
         "ok": True,
         "jogo": {
             "mandante_id": home_id,
+            "mandante_nome": None,  # Será preenchido ao buscar stats
             "visitante_id": away_id,
+            "visitante_nome": None,  # Será preenchido ao buscar stats
             "liga_id": league_id,
             "temporada": season
         },
@@ -1524,6 +1526,9 @@ def analysis_complete():
     # Extrair apenas estatísticas essenciais (otimizado para ChatGPT)
     if stats_home and stats_home.get("response"):
         home_stats = stats_home["response"]
+        # Extrair nome do time
+        complete_analysis["jogo"]["mandante_nome"] = home_stats.get("team", {}).get("name", "Desconhecido")
+
         complete_analysis["estatisticas"]["mandante"] = {
             "forma": home_stats.get("form"),
             "jogos_casa": home_stats.get("fixtures", {}).get("played", {}).get("home", 0),
@@ -1536,6 +1541,9 @@ def analysis_complete():
 
     if stats_away and stats_away.get("response"):
         away_stats = stats_away["response"]
+        # Extrair nome do time
+        complete_analysis["jogo"]["visitante_nome"] = away_stats.get("team", {}).get("name", "Desconhecido")
+
         complete_analysis["estatisticas"]["visitante"] = {
             "forma": away_stats.get("form"),
             "jogos_fora": away_stats.get("fixtures", {}).get("played", {}).get("away", 0),
