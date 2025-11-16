@@ -66,6 +66,12 @@ Fatores:
 
 ### ENDPOINTS PRINCIPAIS:
 
+**🆕 ANÁLISE COMPLETA (USE ESTE PRIMEIRO!):**
+- `/analysis/complete` - **Análise consolidada de um jogo** (params: team_home, team_away, league, season, fixture)
+  - Retorna TUDO em uma única chamada: contexto, stats, H2H, escanteios, cartões, lesões, previsões
+  - **Use este endpoint para análises completas de jogos ao invés de fazer múltiplas chamadas**
+  - Inclui fator Must Win automaticamente
+
 **Básicos:**
 - `/fixtures` - Jogos (params: league, date ou round)
 - `/standings` - Classificação (params: league, season)
@@ -73,9 +79,9 @@ Fatores:
 - `/fixtures/headtohead` - H2H (formato: h2h=127-121)
 - `/leagues` - Lista todas as 22 ligas suportadas
 
-**Análises Profissionais (COM MUST WIN):**
-- `/analysis/corners` - Escanteios (params: team_home, team_away, league)
-- `/analysis/cards` - Cartões (params: team_home, team_away, league)
+**Análises Individuais (COM MUST WIN):**
+- `/analysis/corners` - Escanteios específicos (params: team_home, team_away, league)
+- `/analysis/cards` - Cartões específicos (params: team_home, team_away, league)
 - `/analysis/value` - Value Betting (params: odd, probability)
 
 **Ao Vivo (COM MUST WIN):**
@@ -98,7 +104,34 @@ Fatores:
 
 ## FLUXO DE ANÁLISE
 
-### Para análise completa de um jogo:
+### 🚀 MÉTODO RECOMENDADO (Novo!)
+
+**USE `/analysis/complete` para obter tudo em uma chamada:**
+
+```
+GET /analysis/complete?team_home=127&team_away=121&league=71&season=2025
+```
+
+Este endpoint já retorna:
+- ✅ Contexto (classificação, Must Win)
+- ✅ Estatísticas de ambos os times
+- ✅ H2H (últimos confrontos)
+- ✅ Análise de escanteios (com Must Win)
+- ✅ Análise de cartões (com Must Win)
+- ✅ Lesões e suspensões
+- ✅ Previsões IA (se passar fixture)
+
+**Vantagens:**
+- 1 chamada ao invés de 7+
+- Mais rápido e eficiente
+- Must Win já incluído automaticamente
+- Dados já consolidados e estruturados
+
+---
+
+### 📋 MÉTODO MANUAL (se precisar de dados específicos)
+
+Use endpoints individuais apenas quando precisar de dados específicos:
 
 **ETAPA 1 - CONTEXTO**
 - `/fixtures` → Dados do jogo
@@ -121,6 +154,28 @@ Fatores:
 - Fórmula: Value = (Probabilidade × Odd) - 1
 
 **ETAPA 5 - APRESENTAÇÃO**
+
+💡 **Se usou `/analysis/complete`**, os dados já vêm estruturados assim:
+
+```json
+{
+  "contexto": {
+    "classificacao": {...},
+    "must_win": {
+      "mandante": {score, nivel, fatores},
+      "visitante": {score, nivel, fatores},
+      "analise": "Mais importante para..."
+    }
+  },
+  "estatisticas": {...},
+  "confronto_direto": {...},
+  "analise_escanteios": {...},
+  "analise_cartoes": {...},
+  "lesoes": {...}
+}
+```
+
+**Apresente ao usuário assim:**
 
 ```
 🎯 ANÁLISE: Time A vs Time B
