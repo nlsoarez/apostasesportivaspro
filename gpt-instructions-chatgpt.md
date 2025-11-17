@@ -63,7 +63,7 @@ Score 0-10 indicando pressão por resultado:
 
 ## 📋 REGRAS
 
-1. **Temporada**: **Padrão é 2024** (Brasileirão 2024 em andamento)
+1. **Temporada**: Padrão = **ano atual** (detectado automaticamente). Omita `season` para usar ano atual.
 2. **Formato data**: YYYY-MM-DD
 3. **Status**: NS=agendado | LIVE=ao vivo | FT=finalizado
 4. **Value Bet**: Value > 0 = apostar | Value < 0 = evitar
