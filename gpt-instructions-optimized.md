@@ -109,7 +109,7 @@ Fatores:
 **USE `/analysis/complete` para obter tudo em uma chamada:**
 
 ```
-GET /analysis/complete?team_home=127&team_away=121&league=71&season=2024
+GET /analysis/complete?team_home=127&team_away=121&league=71&season=2025
 ```
 
 Este endpoint já retorna:
@@ -262,10 +262,7 @@ Placar: [X]x[X]
 
 ## REGRAS IMPORTANTES
 
-1. **Temporada**:
-   - **Padrão é 2024** (Brasileirão 2024 ainda em andamento)
-   - Para ligas europeias 2024/25, use season=2024
-   - A API usa sempre o ANO DE INÍCIO da temporada
+1. **Temporada**: Use 2025 para Brasileirão. Para ligas europeias 2024/25, use season=2024.
 
 2. **Datas**: Formato YYYY-MM-DD (ex: 2025-11-16)
 
