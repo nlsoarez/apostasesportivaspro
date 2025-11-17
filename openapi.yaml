@@ -131,10 +131,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
         - name: status
           in: query
@@ -313,10 +312,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -659,10 +657,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -714,10 +711,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -755,10 +751,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -805,10 +800,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -955,10 +949,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -1101,10 +1094,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
       responses:
         "200":
@@ -1232,10 +1224,9 @@ paths:
         - name: season
           in: query
           required: false
-          description: Ano da temporada
+          description: Ano da temporada (padrão = ano atual)
           schema:
             type: integer
-            default: 2025
             example: 2025
         - name: fixture
           in: query

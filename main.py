@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Constantes da aplicação
 # =======================
 API_VERSION = "5.0"
-DEFAULT_SEASON = 2025
+DEFAULT_SEASON = datetime.now().year  # Detecta automaticamente o ano atual
 DEFAULT_TIMEZONE = "America/Sao_Paulo"
 DEFAULT_NEWS_DAYS = 3
 MAX_NEWS_DAYS = 30
