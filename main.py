@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # Constantes da aplicação
 # =======================
 API_VERSION = "5.0"
-DEFAULT_SEASON = 2024  # Atualizado: Brasileirão 2024 ainda em andamento
+DEFAULT_SEASON = 2025
 DEFAULT_TIMEZONE = "America/Sao_Paulo"
 DEFAULT_NEWS_DAYS = 3
 MAX_NEWS_DAYS = 30
