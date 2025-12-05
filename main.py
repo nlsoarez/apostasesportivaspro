@@ -19,6 +19,27 @@ app = Flask(__name__)
 CORS(app)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
+# =======================
+# Database e Learning System
+# =======================
+try:
+    from database import init_db
+    from learning_routes import learning_bp
+
+    # Registrar blueprint de learning
+    app.register_blueprint(learning_bp)
+
+    # Inicializar banco de dados
+    with app.app_context():
+        init_db()
+        logger.info("✅ Learning system initialized - database ready")
+except ImportError as e:
+    logger.warning(f"⚠️  Learning system not available: {e}")
+    logger.warning("Install SQLAlchemy to enable prediction tracking: pip install SQLAlchemy")
+except Exception as e:
+    logger.error(f"❌ Error initializing learning system: {e}")
+    logger.error("Continuing without learning features...")
+
 # Logger
 logging.basicConfig(
     level=logging.INFO,

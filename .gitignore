@@ -20,3 +20,9 @@ tmp/
 *.old
 *.pdf
 *.docx
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+predictions.db

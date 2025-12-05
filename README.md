@@ -134,6 +134,75 @@ curl "https://seu-dominio.vercel.app/fixtures/live"
 
 [Ver lista completa de 50+ ligas no código]
 
+## 🎓 Sistema de Aprendizado (NOVO!)
+
+**Versão 6.0** introduz um sistema completo de aprendizado e feedback que permite à API melhorar continuamente suas predições.
+
+### 🌟 Recursos do Learning System
+
+- **📊 Tracking de Predições**: Todas as análises são salvas automaticamente
+- **✅ Verificação de Resultados**: Compare predições com resultados reais
+- **📈 Métricas de Performance**: Acurácia, ROI, calibração de confiança
+- **🔍 Insights Automáticos**: Sistema identifica padrões e gera recomendações
+- **💡 Melhoria Contínua**: Ajuste de parâmetros baseado em histórico
+
+### Endpoints de Learning
+
+| Endpoint | Método | Descrição |
+|----------|--------|-----------|
+| `/predictions/save` | POST | Salvar nova predição |
+| `/predictions/verify/<id>` | POST | Verificar predição com resultado real |
+| `/predictions/verify-fixture/<fixture_id>` | POST | Verificar todas predições de uma partida |
+| `/predictions/metrics` | GET | Métricas de performance (acurácia, ROI) |
+| `/predictions/dashboard` | GET | Dashboard consolidado com recomendações |
+| `/predictions/list` | GET | Listar predições com filtros |
+| `/predictions/<id>` | GET | Buscar predição específica |
+| `/predictions/insights` | GET/POST | Insights de aprendizado |
+
+### Configuração Rápida
+
+```bash
+# Instalar dependências (se ainda não instalou)
+pip install -r requirements.txt
+
+# Inicializar banco de dados
+python setup_db.py init
+
+# (Opcional) Adicionar dados de exemplo
+python setup_db.py sample
+
+# Ver estatísticas
+python setup_db.py stats
+```
+
+### Exemplo de Uso
+
+```bash
+# 1. Fazer uma análise (predição é salva automaticamente)
+curl "https://seu-dominio.vercel.app/analysis/corners?fixture=12345"
+
+# 2. Após a partida, verificar resultado
+curl -X POST "https://seu-dominio.vercel.app/predictions/verify-fixture/12345" \
+  -H "Content-Type: application/json" \
+  -d '{"corners": 12.0, "cards": 5.0}'
+
+# 3. Ver métricas
+curl "https://seu-dominio.vercel.app/predictions/metrics?type=corners&days=30"
+
+# 4. Dashboard com recomendações
+curl "https://seu-dominio.vercel.app/predictions/dashboard"
+```
+
+### Métricas Calculadas
+
+- **Acurácia**: % de predições corretas
+- **ROI**: Retorno sobre investimento (considerando odds)
+- **Calibração**: Confiança prevista vs acurácia real
+- **Performance por Must Win Level**: Análise por contexto de pressão
+
+📖 **Documentação Completa**: Ver [LEARNING_GUIDE.md](LEARNING_GUIDE.md)
+🔍 **Análise Detalhada**: Ver [ANALYSIS.md](ANALYSIS.md)
+
 ## 🤖 Integração com ChatGPT
 
 Este backend foi projetado para ser usado como **Custom GPT Action**. O GPT utiliza os endpoints para:
