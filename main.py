@@ -575,7 +575,7 @@ def standings():
 def team_statistics():
     team = request.args.get("team")
     league = request.args.get("league")
-    season = request.args.get("season", "2025")
+    season = request.args.get("season", str(DEFAULT_SEASON))
     if not (team and league): return error_response("Parâmetros 'team' e 'league' obrigatórios")
 
     data, error = call_api_football("/teams/statistics", {"team": team, "league": league, "season": season})
@@ -586,7 +586,7 @@ def team_statistics():
 @app.route("/players/topscorers")
 def top_scorers():
     league = request.args.get("league")
-    season = request.args.get("season", "2025")
+    season = request.args.get("season", str(DEFAULT_SEASON))
     if not league: return error_response("Parâmetro 'league' obrigatório")
 
     data, error = call_api_football("/players/topscorers", {"league": league, "season": season})
@@ -635,7 +635,7 @@ def head_to_head():
 def injuries():
     league = request.args.get("league")
     team = request.args.get("team")
-    season = request.args.get("season", "2025")
+    season = request.args.get("season", str(DEFAULT_SEASON))
     if not (league and team): return error_response("Parâmetros 'league' e 'team' obrigatórios")
 
     data, error = call_api_football("/injuries", {"league": league, "team": team, "season": season})
