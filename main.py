@@ -9,7 +9,6 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
-from functools import lru_cache
 
 # =======================
 # Configurações iniciais
@@ -1407,7 +1406,7 @@ def news_context():
 
     query = f"{team} {league or ''} futebol lesão suspensão demitido técnico clima site:ge.globo.com OR site:espn.com.br"
     url = "https://newsapi.org/v2/everything"
-    headers = {"Authorization": NEWS_API_KEY}
+    headers = {"X-Api-Key": NEWS_API_KEY}
     params = {
         "q": query,
         "language": "pt",
@@ -1729,16 +1728,16 @@ def analysis_complete():
         for injury in injuries_home["response"][:5]:  # Limitar a 5
             injuries_home_list.append({
                 "jogador": injury.get("player", {}).get("name"),
-                "tipo": injury.get("player", {}).get("type"),
-                "motivo": injury.get("player", {}).get("reason")
+                "tipo": injury.get("injury", {}).get("type"),
+                "motivo": injury.get("injury", {}).get("reason")
             })
 
     if injuries_away and injuries_away.get("response"):
         for injury in injuries_away["response"][:5]:  # Limitar a 5
             injuries_away_list.append({
                 "jogador": injury.get("player", {}).get("name"),
-                "tipo": injury.get("player", {}).get("type"),
-                "motivo": injury.get("player", {}).get("reason")
+                "tipo": injury.get("injury", {}).get("type"),
+                "motivo": injury.get("injury", {}).get("reason")
             })
 
     complete_analysis["lesoes"] = {
