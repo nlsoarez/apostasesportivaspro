@@ -951,24 +951,39 @@ paths:
 
   /injuries:
     get:
-      summary: Lesões e suspensões (não disponível no plano atual)
+      summary: Jogadores ausentes (lesionados/suspensos) de uma competição
       description: |
-        Este endpoint não está disponível no pacote Soccer Base do Sportradar.
-        Use /teams/statistics para ver o plantel completo e /news/context para notícias de lesões.
+        Retorna jogadores indisponíveis (lesionados ou suspensos) de uma competição/temporada.
+        Opcionalmente filtra por time.
+        Fonte: Sportradar Season Missing Players endpoint.
       operationId: getInjuries
       tags:
         - teams
       parameters:
-        - name: team
+        - name: competition
           in: query
           required: true
-          description: URN do time (ex. sr:competitor:1234)
+          description: URN da competição (ex. sr:competition:325)
+          schema:
+            type: string
+            example: "sr:competition:325"
+        - name: team
+          in: query
+          required: false
+          description: URN do time para filtrar (ex. sr:competitor:1234). Se omitido, retorna todos os times.
           schema:
             type: string
             example: "sr:competitor:1234"
+        - name: season
+          in: query
+          required: false
+          description: URN da temporada. Se omitido, detecta automaticamente.
+          schema:
+            type: string
+            example: "sr:season:106479"
       responses:
-        "503":
-          description: Não disponível no plano atual
+        "200":
+          description: Lista de jogadores ausentes
           content:
             application/json:
               schema:
@@ -976,11 +991,55 @@ paths:
                 properties:
                   ok:
                     type: boolean
-                    example: false
-                  error:
+                    example: true
+                  competition:
                     type: string
-                  alternativas:
-                    type: object
+                    example: "sr:competition:325"
+                  season:
+                    type: string
+                    example: "sr:season:106479"
+                  team_filter:
+                    type: string
+                    nullable: true
+                    example: "sr:competitor:1234"
+                  total:
+                    type: integer
+                    example: 4
+                  lesoes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        time:
+                          type: string
+                          example: "Flamengo"
+                        time_id:
+                          type: string
+                          example: "sr:competitor:1234"
+                        jogador:
+                          type: string
+                          example: "Everton Ribeiro"
+                        jogador_id:
+                          type: string
+                          example: "sr:player:123456"
+                        tipo:
+                          type: string
+                          example: "injury"
+                        lesionado:
+                          type: boolean
+                          example: true
+                        desde:
+                          type: string
+                          nullable: true
+                          example: "2025-01-15"
+                        retorno_previsto:
+                          type: string
+                          nullable: true
+                          example: "2025-03-01"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /predictions:
     get:

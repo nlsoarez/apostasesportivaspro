@@ -327,6 +327,51 @@ def _get_current_season_urn(competition_urn):
     return best.get("id"), None
 
 
+def _get_team_form(competitor_urn):
+    """
+    Calcula string de forma (W/D/L) dos últimos 5 jogos de um time.
+    Retorna (form_str, error) ex: ("WWDLW", None)
+    Consome 1 chamada à API Sportradar.
+    """
+    data, error = call_sportradar(f"/competitors/{competitor_urn}/summaries.json")
+    if error:
+        return None, error
+
+    form = []
+    for summary in data.get("summaries", []):
+        if len(form) >= 5:
+            break
+        status_obj = summary.get("sport_event_status", {})
+        if status_obj.get("status") not in ("closed", "ended"):
+            continue
+
+        competitors = summary.get("sport_event", {}).get("competitors", [])
+        qualifier = None
+        for c in competitors:
+            if c.get("id") == competitor_urn:
+                qualifier = c.get("qualifier")
+                break
+
+        home_score = int(status_obj.get("home_score") or 0)
+        away_score = int(status_obj.get("away_score") or 0)
+
+        if qualifier == "home":
+            team_score, opp_score = home_score, away_score
+        elif qualifier == "away":
+            team_score, opp_score = away_score, home_score
+        else:
+            continue
+
+        if team_score > opp_score:
+            form.append("W")
+        elif team_score == opp_score:
+            form.append("D")
+        else:
+            form.append("L")
+
+    return "".join(form) if form else None, None
+
+
 def _parse_status_sportradar(status_str):
     """Converte status Sportradar para abreviação conhecida."""
     mapping = {
@@ -1016,9 +1061,11 @@ def live_analysis():
     elif elapsed > 30:
         momento = "Final do primeiro tempo"
 
-    # Must Win (sem dados de tabela no contexto ao vivo, usa score neutro)
-    must_win_home = calculate_must_win_factor()
-    must_win_away = calculate_must_win_factor()
+    # Must Win com forma recente
+    form_home, _ = _get_team_form(home_id) if home_id else (None, None)
+    form_away, _ = _get_team_form(away_id) if away_id else (None, None)
+    must_win_home = calculate_must_win_factor(form_home)
+    must_win_away = calculate_must_win_factor(form_away)
 
     # Estatísticas ao vivo por time
     live_stats = {"mandante": {}, "visitante": {}}
@@ -1236,29 +1283,68 @@ def minute_by_minute_analysis():
 @app.route("/injuries")
 def injuries():
     """
-    Lesões e suspensões.
-    Nota: O Sportradar Soccer Base não inclui endpoint de lesões detalhado.
-    Use /teams/statistics para obter o perfil e plantel do time.
+    Jogadores ausentes (lesionados/suspensos) de uma competição/temporada.
 
     Query Parameters:
-        - team (required): URN do time (ex: sr:competitor:1234)
+        - competition (required): URN da competição (ex: sr:competition:325)
+        - team (optional): URN do time para filtrar (ex: sr:competitor:1234)
+        - season (optional): URN da temporada (auto-detecta se omitido)
     """
-    team = request.args.get("team")
-    if not team:
-        return error_response("Parametro 'team' e obrigatorio (ex: sr:competitor:1234)")
+    competition = request.args.get("competition")
+    team_filter = request.args.get("team")
+    season_urn = request.args.get("season")
+
+    if not competition:
+        return error_response(
+            "Parametro 'competition' e obrigatorio (ex: sr:competition:325). "
+            "Use /competitions para listar os IDs disponíveis."
+        )
+
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
+
+    data, error = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/missing_players.json"
+    )
+    if error:
+        return error_response(error, 500)
+
+    missing = data.get("missing_players", {})
+    competitors_raw = missing.get("competitors", [])
+
+    lesoes = []
+    for comp_entry in competitors_raw:
+        comp = comp_entry.get("competitor", {})
+        comp_id = comp.get("id")
+        comp_name = comp.get("name")
+
+        # Filtrar por time se solicitado
+        if team_filter and comp_id != team_filter:
+            continue
+
+        for player_entry in comp_entry.get("players", []):
+            player = player_entry.get("player", {})
+            lesoes.append({
+                "time": comp_name,
+                "time_id": comp_id,
+                "jogador": player.get("name"),
+                "jogador_id": player.get("id"),
+                "tipo": player_entry.get("type"),
+                "lesionado": player_entry.get("injured", False),
+                "desde": player_entry.get("started_at"),
+                "retorno_previsto": player_entry.get("return_date")
+            })
 
     return jsonify({
-        "ok": False,
-        "error": (
-            "O plano Sportradar Soccer Base nao inclui endpoint de lesoes detalhado. "
-            "Use /teams/statistics?team=" + team + " para ver o plantel completo do time. "
-            "Para lesoes, consulte fontes externas como ge.globo.com ou espn.com.br via /news/context."
-        ),
-        "alternativas": {
-            "plantel": f"/teams/statistics?team={team}",
-            "noticias": "/news/context?team=<nome-do-time>"
-        }
-    }), 503
+        "ok": True,
+        "competition": competition,
+        "season": season_urn,
+        "team_filter": team_filter,
+        "total": len(lesoes),
+        "lesoes": lesoes
+    })
 
 
 @app.route("/odds")
@@ -1342,8 +1428,10 @@ def analysis_corners():
     except Exception as e:
         logger.warning(f"Erro ao processar standings para corners: {e}")
 
-    must_win_home = calculate_must_win_factor(None, home_position, total_teams)
-    must_win_away = calculate_must_win_factor(None, away_position, total_teams)
+    form_home, _ = _get_team_form(team_home)
+    form_away, _ = _get_team_form(team_away)
+    must_win_home = calculate_must_win_factor(form_home, home_position, total_teams)
+    must_win_away = calculate_must_win_factor(form_away, away_position, total_teams)
 
     estimativa = DEFAULT_CORNERS_ESTIMATE
     must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
@@ -1417,8 +1505,10 @@ def analysis_cards():
     except Exception as e:
         logger.warning(f"Erro ao processar standings para cards: {e}")
 
-    must_win_home = calculate_must_win_factor(None, home_position, total_teams)
-    must_win_away = calculate_must_win_factor(None, away_position, total_teams)
+    form_home, _ = _get_team_form(team_home)
+    form_away, _ = _get_team_form(team_away)
+    must_win_home = calculate_must_win_factor(form_home, home_position, total_teams)
+    must_win_away = calculate_must_win_factor(form_away, away_position, total_teams)
 
     estimativa = DEFAULT_CARDS_ESTIMATE
     must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
@@ -1640,9 +1730,12 @@ def analysis_complete():
             "total_times": total_teams
         }
 
-        # 3. Must Win
-        must_win_home = calculate_must_win_factor(None, home_position, total_teams)
-        must_win_away = calculate_must_win_factor(None, away_position, total_teams)
+        # 3. Must Win com forma recente
+        logger.info("[ANALYSIS COMPLETE] Buscando forma recente dos times")
+        form_home, _ = _get_team_form(team_home)
+        form_away, _ = _get_team_form(team_away)
+        must_win_home = calculate_must_win_factor(form_home, home_position, total_teams)
+        must_win_away = calculate_must_win_factor(form_away, away_position, total_teams)
         complete_analysis["contexto"]["must_win"] = {
             "mandante": must_win_home,
             "visitante": must_win_away,
@@ -1666,8 +1759,10 @@ def analysis_complete():
             "sugestao": "Over 5.5 Cartoes Totais" if must_win_combined >= 5 else "Indefinido"
         }
     else:
-        must_win_home = calculate_must_win_factor()
-        must_win_away = calculate_must_win_factor()
+        form_home, _ = _get_team_form(team_home)
+        form_away, _ = _get_team_form(team_away)
+        must_win_home = calculate_must_win_factor(form_home)
+        must_win_away = calculate_must_win_factor(form_away)
 
     # 4. H2H
     logger.info("[ANALYSIS COMPLETE] Buscando historico H2H")
