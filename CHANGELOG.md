@@ -7,6 +7,29 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [5.1] - 2026-03-03
+
+### Melhorado
+- 🔐 **Tratamento de erros de autenticação na API-Sports**
+  - HTTP 401: Mensagem clara indicando chave inválida ou expirada com link para renovação
+  - HTTP 403: Mensagem indicando sem permissão no plano atual
+  - Antes retornava apenas "Erro HTTP 401/403" sem orientação
+
+- 🩺 **Health check `/health` aprimorado com informações da assinatura**
+  - Plano atual (Free, Pro, etc.)
+  - Status da assinatura (ativa ou expirada)
+  - Data de vencimento da assinatura
+  - Quota diária: requisições usadas, limite e percentual
+  - Email da conta associada
+  - Campo `action` com instrução de resolução quando há problemas
+
+### Corrigido
+- 🐛 Quando API_KEY expira, `/health` agora mostra `"api_sports_status": "invalid_key"` com ação de correção
+- 🐛 Quando quota diária é atingida, mostra `"api_sports_status": "quota_exceeded"`
+- 🐛 Quando assinatura vence, mostra `"api_sports_status": "subscription_expired"`
+
+---
+
 ## [5.0] - 2025-11-13
 
 ### 🎉 Major Release - Melhorias de Qualidade e Documentação

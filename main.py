@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # =======================
 # Constantes da aplicação
 # =======================
-API_VERSION = "5.0"
+API_VERSION = "5.1"
 DEFAULT_SEASON = datetime.now().year  # Detecta automaticamente o ano atual
 DEFAULT_TIMEZONE = "America/Sao_Paulo"
 DEFAULT_NEWS_DAYS = 3
@@ -132,6 +132,15 @@ def call_api_football(endpoint, params, max_retries=None):
                 if "errors" in data and data["errors"]:
                     return None, str(data["errors"])
                 return data, None
+
+            # Erros de autenticação (não tentar novamente)
+            elif response.status_code == 401:
+                logger.error(f"[API] Chave inválida ou expirada (401) -> {endpoint}")
+                return None, "API_KEY inválida ou expirada. Configure uma nova chave no painel da API-Sports: https://api-sports.io/"
+
+            elif response.status_code == 403:
+                logger.error(f"[API] Sem permissão (403) -> {endpoint}")
+                return None, "Sem permissão para acessar este endpoint. Verifique seu plano na API-Sports: https://api-sports.io/"
 
             # Erros temporários que podem ser retentados
             elif response.status_code in [429, 500, 502, 503, 504]:
@@ -390,7 +399,7 @@ def home():
 @app.route("/health")
 def health():
     """
-    Health check da API com teste de conectividade.
+    Health check da API com teste de conectividade e status da assinatura.
     """
     status = {
         "ok": True,
@@ -399,21 +408,59 @@ def health():
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
-    # Testa conectividade com API-Sports (opcional)
+    # Testa conectividade com API-Sports e exibe status da assinatura
     if API_KEY:
         try:
             test_data, test_error = call_api_football("/status", {})
             if test_error:
                 status["api_sports_status"] = "error"
                 status["api_sports_error"] = test_error
+                # Detecta erro de chave expirada/inválida
+                if "inválida ou expirada" in test_error or "401" in test_error:
+                    status["api_sports_status"] = "invalid_key"
+                    status["action"] = "Configure uma nova API_KEY em: https://api-sports.io/"
             else:
                 status["api_sports_status"] = "connected"
+                # Extrai informações da assinatura
+                response_data = test_data.get("response", {})
+                subscription = response_data.get("subscription", {})
+                requests_info = response_data.get("requests", {})
+                account = response_data.get("account", {})
+
+                if subscription:
+                    status["subscription"] = {
+                        "plan": subscription.get("plan", "Desconhecido"),
+                        "active": subscription.get("active", False),
+                        "end_date": subscription.get("end", "N/A")
+                    }
+                    if not subscription.get("active", True):
+                        status["api_sports_status"] = "subscription_expired"
+                        status["action"] = "Renove sua assinatura em: https://api-sports.io/"
+
+                if requests_info:
+                    current = requests_info.get("current", 0)
+                    limit = requests_info.get("limit_day", 0)
+                    remaining = max(0, limit - current) if limit else 0
+                    status["quota"] = {
+                        "used_today": current,
+                        "limit_day": limit,
+                        "remaining": remaining,
+                        "percent_used": round((current / limit * 100), 1) if limit else 0
+                    }
+                    if limit and current >= limit:
+                        status["api_sports_status"] = "quota_exceeded"
+                        status["action"] = "Limite diário de requisições atingido. Tente novamente amanhã."
+
+                if account:
+                    status["account_email"] = account.get("email", "N/A")
+
         except Exception as e:
             status["api_sports_status"] = "unknown"
             logger.warning(f"Health check API-Sports falhou: {e}")
     else:
         status["api_sports_status"] = "not_configured"
         status["warning"] = "API_KEY não configurada"
+        status["action"] = "Configure a variável de ambiente API_KEY com sua chave de https://api-sports.io/"
 
     return jsonify(status)
 
