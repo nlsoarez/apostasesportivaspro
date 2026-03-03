@@ -1,14 +1,31 @@
 openapi: 3.1.0
 info:
   title: Apostas Esportivas Pro API
-  version: "5.0"
+  version: "6.0"
   description: |
-    API profissional para análises esportivas completas com:
-    - ⚽ Dados em tempo real de 50+ ligas
-    - 📊 Estatísticas avançadas e previsões IA
-    - 💰 Value Betting e análises profissionais
-    - 📰 Contexto de notícias e lesões
-    - 🎯 Integração perfeita com ChatGPT
+    API profissional integrada com Sportradar Soccer API v4 para análises esportivas completas.
+
+    ## Importante: IDs no formato Sportradar (URNs)
+    Esta API usa identificadores no formato URN do Sportradar:
+    - Competição: `sr:competition:325` (Brasileirão Série A)
+    - Time: `sr:competitor:1234`
+    - Jogo: `sr:sport_event:12345`
+    - Temporada: `sr:season:106479`
+
+    ## Como começar
+    1. Use `/competitions` para listar competições e seus IDs
+    2. Use `/seasons?competition=sr:competition:325` para obter o ID da temporada atual
+    3. Use `/fixtures?date=2025-03-01` para listar jogos do dia
+    4. Os IDs de times e jogos aparecem nas respostas dos endpoints acima
+
+    ## Competições principais
+    - Brasileirão Série A: `sr:competition:325`
+    - Premier League: `sr:competition:17`
+    - Champions League: `sr:competition:7`
+    - Copa Libertadores: `sr:competition:384`
+
+    ## Rate limit
+    Trial Sportradar: 1 requisição/segundo, 1.000 req/dia
   contact:
     name: API Support
     url: https://github.com/nlsoarez/apostasesportivaspro
@@ -17,12 +34,14 @@ info:
     url: https://github.com/nlsoarez/apostasesportivaspro
 
 servers:
-  - url: https://apostasesportivas.vercel.app
-    description: Servidor de Produção (Vercel)
+  - url: https://apostasesportivaspro.up.railway.app
+    description: Servidor de Produção (Railway)
 
 tags:
   - name: health
     description: Monitoramento e status da API
+  - name: competitions
+    description: Competições e temporadas disponíveis
   - name: fixtures
     description: Jogos e partidas
   - name: standings
@@ -31,12 +50,8 @@ tags:
     description: Times e estatísticas
   - name: players
     description: Jogadores e artilheiros
-  - name: injuries
-    description: Lesões e suspensões
-  - name: odds
-    description: Cotações e odds
   - name: predictions
-    description: Previsões IA
+    description: Probabilidades e previsões (Sportradar)
   - name: analysis
     description: Análises profissionais
   - name: news
@@ -46,7 +61,7 @@ paths:
   /:
     get:
       summary: Documentação da API
-      description: Retorna informações sobre a API e lista de endpoints disponíveis
+      description: Retorna informações sobre a API, provider e lista de endpoints disponíveis
       operationId: getApiInfo
       tags:
         - health
@@ -66,16 +81,18 @@ paths:
                     example: "Apostas Esportivas Pro API"
                   version:
                     type: string
-                    example: "5.0"
-                  description:
+                    example: "6.0"
+                  provider:
                     type: string
-                  endpoints:
-                    type: object
+                    example: "Sportradar Soccer API v4"
+                  nota_ids:
+                    type: string
+                    example: "Use /competitions para listar URNs disponíveis"
 
   /health:
     get:
       summary: Verifica status da API
-      description: Health check básico para monitoramento
+      description: Health check com teste de conectividade Sportradar
       operationId: checkHealth
       tags:
         - health
@@ -93,67 +110,26 @@ paths:
                   message:
                     type: string
                     example: "API operacional"
+                  provider:
+                    type: string
+                    example: "Sportradar Soccer API v4"
+                  sportradar_status:
+                    type: string
+                    enum: [connected, error, invalid_key, not_configured]
+                    example: "connected"
 
-  /fixtures:
+  /competitions:
     get:
-      summary: Lista jogos por data, liga ou rodada
+      summary: Lista competições suportadas
       description: |
-        Busca jogos filtrados por:
-        - Data específica (YYYY-MM-DD)
-        - Rodada da competição
-        - Status (NS=agendado, LIVE=ao vivo, FT=finalizado)
-      operationId: getFixtures
+        Retorna todas as competições disponíveis com seus IDs (URNs) no formato Sportradar.
+        Use estes IDs como parâmetro `competition` nos outros endpoints.
+      operationId: getCompetitions
       tags:
-        - fixtures
-      parameters:
-        - name: league
-          in: query
-          required: true
-          description: ID da liga (ex. 71=Brasileirão, 39=Premier League)
-          schema:
-            type: integer
-            example: 71
-        - name: date
-          in: query
-          required: false
-          description: Data dos jogos no formato YYYY-MM-DD
-          schema:
-            type: string
-            format: date
-            example: "2025-11-13"
-        - name: round
-          in: query
-          required: false
-          description: Rodada da competição (alternativa a date)
-          schema:
-            type: string
-            example: "Regular Season - 34"
-        - name: season
-          in: query
-          required: false
-          description: Ano da temporada (padrão = ano atual)
-          schema:
-            type: integer
-            example: 2025
-        - name: status
-          in: query
-          required: false
-          description: Status do jogo (NS, LIVE, FT, PST, CANC, etc.)
-          schema:
-            type: string
-            enum: [NS, LIVE, FT, PST, CANC, ABD, AWD, WO, TBD]
-            example: "LIVE"
-        - name: timezone
-          in: query
-          required: false
-          description: Fuso horário para datas
-          schema:
-            type: string
-            default: "America/Sao_Paulo"
-            example: "America/Sao_Paulo"
+        - competitions
       responses:
         "200":
-          description: Lista de jogos encontrados
+          description: Lista de competições suportadas
           content:
             application/json:
               schema:
@@ -164,49 +140,218 @@ paths:
                     example: true
                   total:
                     type: integer
-                    example: 10
+                    example: 20
+                  competitions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "sr:competition:325"
+                        name:
+                          type: string
+                          example: "Brasileirao Serie A"
+                  categories:
+                    type: object
+                    properties:
+                      brasil:
+                        type: array
+                        items:
+                          type: string
+                        example: ["sr:competition:325", "sr:competition:390"]
+                      europa:
+                        type: array
+                        items:
+                          type: string
+                        example: ["sr:competition:17", "sr:competition:8"]
+                  nota:
+                    type: string
+                    example: "Use o 'id' como parâmetro 'competition' nos outros endpoints"
+
+  /leagues:
+    get:
+      summary: Alias para /competitions (compatibilidade)
+      description: Redireciona para /competitions. Use /competitions para a lista atualizada de URNs.
+      operationId: getLeagues
+      tags:
+        - competitions
+      responses:
+        "200":
+          description: Lista de competições (mesmo que /competitions)
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /seasons:
+    get:
+      summary: Lista temporadas de uma competição
+      description: |
+        Retorna as temporadas disponíveis para uma competição específica.
+        Use o `id` da temporada como parâmetro `season` em outros endpoints.
+      operationId: getSeasons
+      tags:
+        - competitions
+      parameters:
+        - name: competition
+          in: query
+          required: true
+          description: URN da competição (ex. sr:competition:325)
+          schema:
+            type: string
+            example: "sr:competition:325"
+      responses:
+        "200":
+          description: Lista de temporadas disponíveis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  competition:
+                    type: string
+                    example: "sr:competition:325"
+                  total:
+                    type: integer
+                    example: 5
+                  seasons:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "sr:season:106479"
+                        name:
+                          type: string
+                          example: "Brasileirao Serie A 2025"
+                        year:
+                          type: string
+                          example: "2025"
+                        start_date:
+                          type: string
+                          example: "2025-04-01"
+                        end_date:
+                          type: string
+                          example: "2025-12-07"
+                  nota:
+                    type: string
+                    example: "Use o 'id' da temporada como parâmetro 'season' nos outros endpoints"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /fixtures:
+    get:
+      summary: Lista jogos por data
+      description: |
+        Busca jogos de um dia específico via Sportradar.
+        Opcionalmente filtra por competição.
+        Retorna placar para jogos finalizados e status ao vivo para jogos em andamento.
+      operationId: getFixtures
+      tags:
+        - fixtures
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: Data dos jogos no formato YYYY-MM-DD (padrão = hoje)
+          schema:
+            type: string
+            format: date
+            example: "2025-04-20"
+        - name: competition
+          in: query
+          required: false
+          description: URN da competição para filtrar resultados (ex. sr:competition:325)
+          schema:
+            type: string
+            example: "sr:competition:325"
+      responses:
+        "200":
+          description: Lista de jogos do dia
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  date:
+                    type: string
+                    example: "2025-04-20"
+                  total:
+                    type: integer
+                    example: 12
                   jogos:
                     type: array
                     items:
                       type: object
                       properties:
                         id:
-                          type: integer
-                          example: 1234567
+                          type: string
+                          example: "sr:sport_event:45678901"
                         data:
                           type: string
                           format: date-time
-                          example: "2025-11-13T20:00:00-03:00"
+                          example: "2025-04-20T20:00:00+00:00"
                         status:
                           type: string
+                          enum: [NS, LIVE, 1H, HT, 2H, ET, PEN, FT, PST, CANC, ABD]
                           example: "NS"
+                        minuto:
+                          type: string
+                          nullable: true
+                          example: "67"
+                        competicao:
+                          type: string
+                          example: "Brasileirao Serie A"
+                        competicao_id:
+                          type: string
+                          example: "sr:competition:325"
                         mandante:
                           type: string
                           example: "Flamengo"
                         visitante:
                           type: string
                           example: "Palmeiras"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+                        placar:
+                          type: string
+                          nullable: true
+                          example: "2x1"
         "500":
           $ref: "#/components/responses/InternalError"
 
   /fixtures/headtohead:
     get:
       summary: Histórico de confrontos diretos (H2H)
-      description: Retorna os últimos 10 jogos entre dois times
+      description: |
+        Retorna os últimos confrontos entre dois times e os próximos jogos marcados.
+        Use os IDs de time (sr:competitor:XXX) encontrados nas respostas de /fixtures ou /standings.
       operationId: getHeadToHead
       tags:
         - fixtures
       parameters:
-        - name: h2h
+        - name: team1
           in: query
           required: true
-          description: IDs dos times no formato "idTimeA-idTimeB"
+          description: URN do time 1 (ex. sr:competitor:1234)
           schema:
             type: string
-            pattern: '^\d+-\d+$'
-            example: "127-121"
+            example: "sr:competitor:1234"
+        - name: team2
+          in: query
+          required: true
+          description: URN do time 2 (ex. sr:competitor:5678)
+          schema:
+            type: string
+            example: "sr:competitor:5678"
       responses:
         "200":
           description: Histórico de confrontos
@@ -218,7 +363,13 @@ paths:
                   ok:
                     type: boolean
                     example: true
-                  total:
+                  team1:
+                    type: string
+                    example: "sr:competitor:1234"
+                  team2:
+                    type: string
+                    example: "sr:competitor:5678"
+                  total_historico:
                     type: integer
                     example: 10
                   resultados:
@@ -226,6 +377,12 @@ paths:
                     items:
                       type: object
                       properties:
+                        id:
+                          type: string
+                          example: "sr:sport_event:12345"
+                        data:
+                          type: string
+                          format: date-time
                         mandante:
                           type: string
                           example: "Flamengo"
@@ -235,6 +392,23 @@ paths:
                         placar:
                           type: string
                           example: "2x1"
+                        status:
+                          type: string
+                          example: "FT"
+                  proximos:
+                    type: array
+                    description: Próximos confrontos agendados
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        data:
+                          type: string
+                        mandante:
+                          type: string
+                        visitante:
+                          type: string
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -243,7 +417,7 @@ paths:
   /fixtures/live:
     get:
       summary: Jogos ao vivo no momento
-      description: Lista os top 20 jogos que estão acontecendo agora
+      description: Lista os top 20 jogos que estão acontecendo agora com placar e minuto
       operationId: getLiveFixtures
       tags:
         - fixtures
@@ -258,26 +432,44 @@ paths:
                   ok:
                     type: boolean
                     example: true
+                  total:
+                    type: integer
+                    example: 8
                   partidas:
                     type: array
                     items:
                       type: object
                       properties:
                         id:
-                          type: integer
-                          example: 1234567
+                          type: string
+                          example: "sr:sport_event:45678901"
                         status:
                           type: string
-                          example: "1H"
+                          example: "2H"
+                        match_status:
+                          type: string
+                          example: "2nd_half"
                         minuto:
-                          type: integer
-                          example: 32
+                          type: string
+                          example: "67"
+                        competicao:
+                          type: string
+                          example: "Brasileirao Serie A"
+                        competicao_id:
+                          type: string
+                          example: "sr:competition:325"
                         mandante:
                           type: string
                           example: "Flamengo"
                         visitante:
                           type: string
                           example: "Palmeiras"
+                        placar:
+                          type: string
+                          example: "1x0"
+                  timestamp:
+                    type: string
+                    format: date-time
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -286,9 +478,9 @@ paths:
       summary: Análise completa de jogo ao vivo
       description: |
         Análise profissional de jogo em andamento incluindo:
-        - Estatísticas em tempo real (posse, chutes, escanteios, cartões)
-        - Fator Must Win de ambos os times
-        - Análise de momento do jogo
+        - Placar e minuto atual
+        - Estatísticas em tempo real (via Sportradar summary)
+        - Fator Must Win
         - Sugestões contextualizadas de apostas ao vivo
       operationId: getLiveAnalysis
       tags:
@@ -298,24 +490,10 @@ paths:
         - name: fixture
           in: query
           required: true
-          description: ID do jogo ao vivo
+          description: URN do jogo ao vivo (ex. sr:sport_event:12345)
           schema:
-            type: integer
-            example: 1234567
-        - name: league
-          in: query
-          required: true
-          description: ID da liga
-          schema:
-            type: integer
-            example: 71
-        - name: season
-          in: query
-          required: false
-          description: Ano da temporada (padrão = ano atual)
-          schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:sport_event:45678901"
       responses:
         "200":
           description: Análise completa do jogo ao vivo
@@ -331,11 +509,14 @@ paths:
                     type: object
                     properties:
                       id:
-                        type: integer
-                        example: 1234567
+                        type: string
+                        example: "sr:sport_event:45678901"
                       status:
                         type: string
-                        example: "Match Finished"
+                        example: "2H"
+                      match_status:
+                        type: string
+                        example: "2nd_half"
                       minuto:
                         type: integer
                         example: 67
@@ -354,9 +535,6 @@ paths:
                           atual:
                             type: string
                             example: "2x1"
-                          halftime:
-                            type: string
-                            example: "1x0"
                   estatisticas_ao_vivo:
                     type: object
                     properties:
@@ -368,38 +546,11 @@ paths:
                     type: object
                     properties:
                       mandante:
-                        type: object
-                        properties:
-                          score:
-                            type: number
-                            format: float
-                            example: 7.5
-                            description: "Score de 0-10 indicando pressão por resultado"
-                          nivel:
-                            type: string
-                            enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                            example: "ALTO"
-                          fatores:
-                            type: array
-                            items:
-                              type: object
-                          recomendacao:
-                            type: string
-                            example: "Time precisa pontuar. Fator motivacional significativo."
+                        $ref: "#/components/schemas/MustWin"
                       visitante:
-                        type: object
-                        properties:
-                          score:
-                            type: number
-                            format: float
-                            example: 5.0
-                          nivel:
-                            type: string
-                            enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                            example: "MODERADO"
+                        $ref: "#/components/schemas/MustWin"
                       analise:
                         type: string
-                        example: "Mais importante para Flamengo"
                   sugestoes_ao_vivo:
                     type: array
                     items:
@@ -410,35 +561,26 @@ paths:
                           example: "Escanteios"
                         mercado:
                           type: string
-                          example: "Projeção: 11.2 escanteios no jogo"
+                          example: "Projecao: 11.2 escanteios no jogo"
                         justificativa:
                           type: string
-                          example: "7 escanteios em 67' (ritmo de 0.10/min)"
                         confianca:
                           type: integer
                           minimum: 1
                           maximum: 5
-                          example: 4
         "400":
           $ref: "#/components/responses/BadRequest"
-        "404":
-          description: Jogo não encontrado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
   /fixtures/live/minute-by-minute:
     get:
-      summary: Análise minuto a minuto do jogo
+      summary: Análise minuto a minuto do jogo (timeline)
       description: |
-        Timeline completa de eventos e análise por períodos:
+        Timeline completa de eventos e análise por períodos via Sportradar:
         - Todos os eventos (gols, cartões, substituições)
         - Análise por períodos (0-15, 16-30, 31-45, 46-60, 61-75, 76-90+)
         - Identificação de momentos-chave
-        - Padrões de jogo identificados
       operationId: getMinuteByMinuteAnalysis
       tags:
         - fixtures
@@ -447,10 +589,10 @@ paths:
         - name: fixture
           in: query
           required: true
-          description: ID do jogo
+          description: URN do jogo (ex. sr:sport_event:12345)
           schema:
-            type: integer
-            example: 1234567
+            type: string
+            example: "sr:sport_event:45678901"
       responses:
         "200":
           description: Análise minuto a minuto completa
@@ -466,8 +608,7 @@ paths:
                     type: object
                     properties:
                       id:
-                        type: integer
-                        example: 1234567
+                        type: string
                       mandante:
                         type: string
                         example: "Flamengo"
@@ -476,7 +617,16 @@ paths:
                         example: "Palmeiras"
                       status:
                         type: string
-                        example: "Match Finished"
+                        example: "FT"
+                      placar:
+                        type: object
+                        properties:
+                          mandante:
+                            type: integer
+                            example: 2
+                          visitante:
+                            type: integer
+                            example: 1
                   timeline_completa:
                     type: array
                     items:
@@ -490,17 +640,16 @@ paths:
                           example: "23'"
                         tipo:
                           type: string
-                          enum: ["Goal", "Card", "subst"]
-                          example: "Goal"
-                        detalhe:
-                          type: string
-                          example: "Normal Goal"
+                          enum: [score_change, yellow_card, red_card, yellow_red_card, substitution, period_start, period_score]
+                          example: "score_change"
                         time:
                           type: string
                           example: "Flamengo"
                         jogador:
                           type: string
                           example: "Pedro"
+                        descricao:
+                          type: string
                   analise_por_periodos:
                     type: object
                     properties:
@@ -509,10 +658,8 @@ paths:
                         properties:
                           gols:
                             type: integer
-                            example: 1
                           cartoes:
                             type: integer
-                            example: 0
                           eventos:
                             type: array
                             items:
@@ -527,140 +674,52 @@ paths:
                           example: "0-15"
                         descricao:
                           type: string
-                          example: "Início elétrico com 1 gol(s)"
                         impacto:
                           type: string
-                          enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                          example: "ALTO"
-                  padroes_identificados:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        tipo:
-                          type: string
-                          example: "Gols"
-                        padrao:
-                          type: string
-                          example: "Jogo abriu no segundo tempo"
-                        dados:
-                          type: string
-                          example: "1 no 1ºT vs 2 no 2ºT"
+                          enum: [CRITICO, ALTO, MODERADO, BAIXO]
                   resumo:
                     type: object
                     properties:
                       total_eventos:
                         type: integer
-                        example: 23
                       total_gols:
                         type: integer
-                        example: 3
                       total_cartoes:
                         type: integer
-                        example: 5
                       total_substituicoes:
                         type: integer
-                        example: 6
         "400":
           $ref: "#/components/responses/BadRequest"
-        "404":
-          description: Jogo não encontrado
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /leagues:
-    get:
-      summary: Ligas suportadas pela API
-      description: |
-        Lista todas as ligas disponíveis organizadas por categoria:
-        - Brasil (Brasileirão, Copa do Brasil, Estaduais)
-        - Europa (Premier League, La Liga, Serie A, Bundesliga, etc)
-        - Internacional (Champions, Europa League, Libertadores)
-        - Américas (MLS, Liga MX)
-        - Mundial (Copa do Mundo, Euro)
-      operationId: getLeagues
-      tags:
-        - health
-      responses:
-        "200":
-          description: Lista de ligas suportadas
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok:
-                    type: boolean
-                    example: true
-                  total:
-                    type: integer
-                    example: 25
-                  leagues:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                          example: 71
-                        name:
-                          type: string
-                          example: "Brasileirão Série A"
-                  categories:
-                    type: object
-                    properties:
-                      brasil:
-                        type: array
-                        items:
-                          type: integer
-                        example: [71, 72, 73, 75, 76]
-                      europa:
-                        type: array
-                        items:
-                          type: integer
-                        example: [39, 140, 135, 78, 61, 94, 88]
-                      internacional:
-                        type: array
-                        items:
-                          type: integer
-                        example: [2, 3, 848, 13, 11]
-                      americas:
-                        type: array
-                        items:
-                          type: integer
-                        example: [253, 128]
-                      mundial:
-                        type: array
-                        items:
-                          type: integer
-                        example: [1, 960]
-
   /standings:
     get:
-      summary: Classificação da liga
-      description: Tabela de classificação completa com pontos, vitórias, derrotas, etc.
+      summary: Classificação da competição
+      description: |
+        Tabela de classificação completa com pontos, vitórias, derrotas, saldo de gols.
+        Se `season` não for fornecida, detecta automaticamente a temporada atual (usa 1 req extra).
       operationId: getStandings
       tags:
         - standings
       parameters:
-        - name: league
+        - name: competition
           in: query
           required: true
-          description: ID da liga
+          description: URN da competição (ex. sr:competition:325 = Brasileirão Série A)
           schema:
-            type: integer
-            example: 71
+            type: string
+            example: "sr:competition:325"
         - name: season
           in: query
           required: false
-          description: Ano da temporada (padrão = ano atual)
+          description: |
+            URN da temporada (ex. sr:season:106479).
+            Se omitido, detecta a temporada atual automaticamente.
+            Use /seasons para obter os IDs.
           schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:season:106479"
       responses:
         "200":
           description: Tabela de classificação
@@ -672,10 +731,53 @@ paths:
                   ok:
                     type: boolean
                     example: true
-                  standings:
+                  competition:
+                    type: string
+                    example: "sr:competition:325"
+                  season:
+                    type: string
+                    example: "sr:season:106479"
+                  total:
+                    type: integer
+                    example: 20
+                  classificacao:
                     type: array
                     items:
                       type: object
+                      properties:
+                        posicao:
+                          type: integer
+                          example: 1
+                        time:
+                          type: string
+                          example: "Flamengo"
+                        time_id:
+                          type: string
+                          example: "sr:competitor:1234"
+                        jogos:
+                          type: integer
+                          example: 10
+                        vitorias:
+                          type: integer
+                          example: 7
+                        empates:
+                          type: integer
+                          example: 2
+                        derrotas:
+                          type: integer
+                          example: 1
+                        gols_pro:
+                          type: integer
+                          example: 20
+                        gols_contra:
+                          type: integer
+                          example: 8
+                        saldo:
+                          type: integer
+                          example: 12
+                        pontos:
+                          type: integer
+                          example: 23
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -683,13 +785,10 @@ paths:
 
   /teams/statistics:
     get:
-      summary: Estatísticas detalhadas de um time
+      summary: Perfil e plantel de um time
       description: |
-        Retorna estatísticas completas incluindo:
-        - Gols marcados/sofridos
-        - Escanteios médios
-        - Cartões amarelos/vermelhos
-        - Performance em casa/fora
+        Retorna perfil completo do time (competitor) incluindo plantel de jogadores.
+        Use o `time_id` retornado em /standings ou /fixtures para obter o URN correto.
       operationId: getTeamStatistics
       tags:
         - teams
@@ -697,27 +796,27 @@ paths:
         - name: team
           in: query
           required: true
-          description: ID do time
+          description: URN do time no Sportradar (ex. sr:competitor:1234)
           schema:
-            type: integer
-            example: 127
-        - name: league
+            type: string
+            example: "sr:competitor:1234"
+        - name: competition
           in: query
-          required: true
-          description: ID da liga
+          required: false
+          description: URN da competição (opcional, para contexto de temporada)
           schema:
-            type: integer
-            example: 71
+            type: string
+            example: "sr:competition:325"
         - name: season
           in: query
           required: false
-          description: Ano da temporada (padrão = ano atual)
+          description: URN da temporada (opcional)
           schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:season:106479"
       responses:
         "200":
-          description: Estatísticas do time
+          description: Perfil e plantel do time
           content:
             application/json:
               schema:
@@ -726,8 +825,50 @@ paths:
                   ok:
                     type: boolean
                     example: true
-                  stats:
+                  team:
                     type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "sr:competitor:1234"
+                      name:
+                        type: string
+                        example: "Flamengo"
+                      short_name:
+                        type: string
+                        example: "Flamengo"
+                      abbreviation:
+                        type: string
+                        example: "FLA"
+                      country:
+                        type: string
+                        example: "Brazil"
+                      country_code:
+                        type: string
+                        example: "BRA"
+                  jogadores:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "sr:player:123456"
+                        name:
+                          type: string
+                          example: "Pedro"
+                        date_of_birth:
+                          type: string
+                          example: "1997-11-01"
+                        nationality:
+                          type: string
+                          example: "Brazil"
+                        jersey_number:
+                          type: string
+                          example: "9"
+                        position:
+                          type: string
+                          example: "forward"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -735,26 +876,28 @@ paths:
 
   /players/topscorers:
     get:
-      summary: Lista de artilheiros da liga
-      description: Jogadores com mais gols na competição
+      summary: Artilheiros da competição
+      description: |
+        Jogadores com mais gols na competição/temporada.
+        Se `season` não for fornecida, detecta automaticamente.
       operationId: getTopScorers
       tags:
         - players
       parameters:
-        - name: league
+        - name: competition
           in: query
           required: true
-          description: ID da liga
+          description: URN da competição (ex. sr:competition:325)
           schema:
-            type: integer
-            example: 71
+            type: string
+            example: "sr:competition:325"
         - name: season
           in: query
           required: false
-          description: Ano da temporada (padrão = ano atual)
+          description: URN da temporada. Se omitido, usa a temporada atual.
           schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:season:106479"
       responses:
         "200":
           description: Lista de artilheiros
@@ -766,10 +909,41 @@ paths:
                   ok:
                     type: boolean
                     example: true
+                  competition:
+                    type: string
+                    example: "sr:competition:325"
+                  season:
+                    type: string
+                    example: "sr:season:106479"
+                  total:
+                    type: integer
+                    example: 20
                   artilheiros:
                     type: array
                     items:
                       type: object
+                      properties:
+                        jogador:
+                          type: string
+                          example: "Pedro"
+                        jogador_id:
+                          type: string
+                          example: "sr:player:123456"
+                        time:
+                          type: string
+                          example: "Flamengo"
+                        time_id:
+                          type: string
+                          example: "sr:competitor:1234"
+                        gols:
+                          type: integer
+                          example: 12
+                        assistencias:
+                          type: integer
+                          example: 5
+                        jogos:
+                          type: integer
+                          example: 18
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -777,36 +951,24 @@ paths:
 
   /injuries:
     get:
-      summary: Lesões e suspensões de um time
-      description: Lista jogadores indisponíveis por lesão, suspensão ou outros motivos
+      summary: Lesões e suspensões (não disponível no plano atual)
+      description: |
+        Este endpoint não está disponível no pacote Soccer Base do Sportradar.
+        Use /teams/statistics para ver o plantel completo e /news/context para notícias de lesões.
       operationId: getInjuries
       tags:
-        - injuries
+        - teams
       parameters:
-        - name: league
-          in: query
-          required: true
-          description: ID da liga
-          schema:
-            type: integer
-            example: 71
         - name: team
           in: query
           required: true
-          description: ID do time
+          description: URN do time (ex. sr:competitor:1234)
           schema:
-            type: integer
-            example: 127
-        - name: season
-          in: query
-          required: false
-          description: Ano da temporada (padrão = ano atual)
-          schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:competitor:1234"
       responses:
-        "200":
-          description: Lista de lesões/suspensões
+        "503":
+          description: Não disponível no plano atual
           content:
             application/json:
               schema:
@@ -814,73 +976,18 @@ paths:
                 properties:
                   ok:
                     type: boolean
-                    example: true
-                  total:
-                    type: integer
-                    example: 5
-                  lesoes:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        jogador:
-                          type: string
-                          example: "Neymar Jr"
-                        tipo:
-                          type: string
-                          example: "Injury"
-                        motivo:
-                          type: string
-                          example: "Ankle Injury"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
-
-  /odds:
-    get:
-      summary: Odds em tempo real de um jogo
-      description: Cotações de múltiplas casas de apostas para um jogo específico
-      operationId: getOdds
-      tags:
-        - odds
-      parameters:
-        - name: fixture
-          in: query
-          required: true
-          description: ID do jogo
-          schema:
-            type: integer
-            example: 1234567
-      responses:
-        "200":
-          description: Odds disponíveis
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ok:
-                    type: boolean
-                    example: true
-                  odds:
-                    type: array
-                    items:
-                      type: object
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
+                    example: false
+                  error:
+                    type: string
+                  alternativas:
+                    type: object
 
   /predictions:
     get:
-      summary: Previsões IA para um jogo
+      summary: Probabilidades de resultado de um jogo (Sportradar)
       description: |
-        Análise preditiva da API-Sports incluindo:
-        - Porcentagem de vitória de cada time
-        - Forma recente
-        - Estatísticas H2H
-        - Análise de gols
+        Retorna probabilidades calculadas pelo Sportradar para mercados como 3way (1X2).
+        Use o `id` do jogo retornado em /fixtures ou /fixtures/live.
       operationId: getPredictions
       tags:
         - predictions
@@ -888,13 +995,13 @@ paths:
         - name: fixture
           in: query
           required: true
-          description: ID do jogo
+          description: URN do jogo (ex. sr:sport_event:12345)
           schema:
-            type: integer
-            example: 1234567
+            type: string
+            example: "sr:sport_event:45678901"
       responses:
         "200":
-          description: Previsões geradas
+          description: Probabilidades geradas pelo Sportradar
           content:
             application/json:
               schema:
@@ -903,59 +1010,125 @@ paths:
                   ok:
                     type: boolean
                     example: true
+                  jogo:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: "sr:sport_event:45678901"
+                      data:
+                        type: string
+                        format: date-time
+                      mandante:
+                        type: string
+                        example: "Flamengo"
+                      visitante:
+                        type: string
+                        example: "Palmeiras"
                   predicoes:
                     type: array
                     items:
                       type: object
+                      properties:
+                        mercado:
+                          type: string
+                          example: "3way"
+                        resultados:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              resultado:
+                                type: string
+                                example: "home_team_winner"
+                              probabilidade:
+                                type: number
+                                format: float
+                                example: 45.0
+                                description: "Probabilidade em porcentagem (0-100)"
+                              probabilidade_decimal:
+                                type: number
+                                format: float
+                                example: 0.45
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /odds:
+    get:
+      summary: Odds de casas de apostas (não disponível no plano atual)
+      description: |
+        Odds de casas de apostas não estão incluídas no pacote Soccer Base do Sportradar.
+        Use /predictions para probabilidades calculadas pela Sportradar.
+      operationId: getOdds
+      tags:
+        - predictions
+      parameters:
+        - name: fixture
+          in: query
+          required: true
+          description: URN do jogo
+          schema:
+            type: string
+            example: "sr:sport_event:45678901"
+      responses:
+        "503":
+          description: Não disponível no plano atual
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+                  alternativa:
+                    type: string
+
   /analysis/corners:
     get:
       summary: Análise de escanteios com fator Must Win
       description: |
-        Calcula estimativa de escanteios baseado em:
-        - Média de escanteios a favor (casa)
-        - Média de escanteios a favor (fora)
-        - Fator Must Win (pressão por resultado)
-        - Gera sugestões ajustadas pelo contexto motivacional
+        Calcula estimativa de escanteios baseado em posição na tabela e fator Must Win.
+        Requer competição e times no formato URN Sportradar.
       operationId: getAnalysisCorners
       tags:
         - analysis
       parameters:
+        - name: competition
+          in: query
+          required: true
+          description: URN da competição (ex. sr:competition:325)
+          schema:
+            type: string
+            example: "sr:competition:325"
         - name: team_home
           in: query
           required: true
-          description: ID do time mandante
+          description: URN do time mandante (ex. sr:competitor:1234)
           schema:
-            type: integer
-            example: 127
+            type: string
+            example: "sr:competitor:1234"
         - name: team_away
           in: query
           required: true
-          description: ID do time visitante
+          description: URN do time visitante (ex. sr:competitor:5678)
           schema:
-            type: integer
-            example: 121
-        - name: league
-          in: query
-          required: true
-          description: ID da liga
-          schema:
-            type: integer
-            example: 71
+            type: string
+            example: "sr:competitor:5678"
         - name: season
           in: query
           required: false
-          description: Ano da temporada (padrão = ano atual)
+          description: URN da temporada. Se omitido, detecta automaticamente.
           schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:season:106479"
       responses:
         "200":
-          description: Análise de escanteios gerada com fator Must Win
+          description: Análise de escanteios com fator Must Win
           content:
             application/json:
               schema:
@@ -971,69 +1144,39 @@ paths:
                         type: object
                         properties:
                           id:
+                            type: string
+                            example: "sr:competitor:1234"
+                          posicao:
                             type: integer
-                            example: 127
+                            nullable: true
+                            example: 3
+                          pontos:
+                            type: integer
+                            example: 25
                           must_win:
-                            type: object
-                            properties:
-                              score:
-                                type: number
-                                format: float
-                                example: 7.5
-                                description: "Score de 0-10 indicando pressão por resultado"
-                              nivel:
-                                type: string
-                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                                example: "ALTO"
-                              fatores:
-                                type: array
-                                items:
-                                  type: object
-                                  properties:
-                                    fator:
-                                      type: string
-                                      example: "Zona de Rebaixamento"
-                                    impacto:
-                                      type: string
-                                      example: "CRÍTICO"
-                                    descricao:
-                                      type: string
-                                      example: "Time na 18ª posição (zona de rebaixamento)"
-                              recomendacao:
-                                type: string
-                                example: "Time precisa pontuar. Fator motivacional significativo."
+                            $ref: "#/components/schemas/MustWin"
                       time_fora:
                         type: object
                         properties:
                           id:
+                            type: string
+                          posicao:
                             type: integer
-                            example: 121
+                            nullable: true
                           must_win:
-                            type: object
-                            properties:
-                              score:
-                                type: number
-                                format: float
-                                example: 5.0
-                              nivel:
-                                type: string
-                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                                example: "MODERADO"
+                            $ref: "#/components/schemas/MustWin"
                       estimativa_total:
                         type: number
                         format: float
-                        example: 10.5
+                        example: 10.0
                       analise_must_win:
                         type: object
                         properties:
                           impacto:
                             type: string
-                            example: "Times pressionados tendem a jogar mais ofensivamente, gerando mais escanteios"
                           fator_combinado:
                             type: number
                             format: float
-                            example: 6.3
-                            description: "Média do fator Must Win dos dois times"
                       sugestoes:
                         type: array
                         items:
@@ -1047,8 +1190,6 @@ paths:
                               format: float
                               minimum: 1
                               maximum: 5
-                              example: 4.8
-                              description: "Confiança ajustada pelo fator Must Win"
                             value_estimado:
                               type: string
                               example: "+20%"
@@ -1061,46 +1202,42 @@ paths:
     get:
       summary: Análise de cartões com fator Must Win
       description: |
-        Calcula estimativa de cartões amarelos baseado em:
-        - Média de cartões em casa
-        - Média de cartões fora
-        - Fator Must Win (pressão por resultado)
-        - Gera sugestões ajustadas pela intensidade do jogo
+        Calcula estimativa de cartões baseado em posição na tabela e fator Must Win.
       operationId: getAnalysisCards
       tags:
         - analysis
       parameters:
+        - name: competition
+          in: query
+          required: true
+          description: URN da competição (ex. sr:competition:325)
+          schema:
+            type: string
+            example: "sr:competition:325"
         - name: team_home
           in: query
           required: true
-          description: ID do time mandante
+          description: URN do time mandante
           schema:
-            type: integer
-            example: 127
+            type: string
+            example: "sr:competitor:1234"
         - name: team_away
           in: query
           required: true
-          description: ID do time visitante
+          description: URN do time visitante
           schema:
-            type: integer
-            example: 121
-        - name: league
-          in: query
-          required: true
-          description: ID da liga
-          schema:
-            type: integer
-            example: 71
+            type: string
+            example: "sr:competitor:5678"
         - name: season
           in: query
           required: false
-          description: Ano da temporada (padrão = ano atual)
+          description: URN da temporada. Se omitido, detecta automaticamente.
           schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:season:106479"
       responses:
         "200":
-          description: Análise de cartões gerada com fator Must Win
+          description: Análise de cartões com fator Must Win
           content:
             application/json:
               schema:
@@ -1116,44 +1253,22 @@ paths:
                         type: object
                         properties:
                           id:
+                            type: string
+                          posicao:
                             type: integer
-                            example: 127
+                            nullable: true
                           must_win:
-                            type: object
-                            properties:
-                              score:
-                                type: number
-                                format: float
-                                example: 7.5
-                                description: "Score de 0-10 indicando pressão por resultado"
-                              nivel:
-                                type: string
-                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                                example: "ALTO"
-                              fatores:
-                                type: array
-                                items:
-                                  type: object
-                              recomendacao:
-                                type: string
-                                example: "Time precisa pontuar. Fator motivacional significativo."
+                            $ref: "#/components/schemas/MustWin"
                       time_fora:
                         type: object
                         properties:
                           id:
+                            type: string
+                          posicao:
                             type: integer
-                            example: 121
+                            nullable: true
                           must_win:
-                            type: object
-                            properties:
-                              score:
-                                type: number
-                                format: float
-                                example: 5.0
-                              nivel:
-                                type: string
-                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                                example: "MODERADO"
+                            $ref: "#/components/schemas/MustWin"
                       estimativa_total:
                         type: number
                         format: float
@@ -1163,12 +1278,9 @@ paths:
                         properties:
                           impacto:
                             type: string
-                            example: "Times pressionados jogam com mais intensidade e agressividade, resultando em mais cartões"
                           fator_combinado:
                             type: number
                             format: float
-                            example: 6.3
-                            description: "Média do fator Must Win dos dois times"
                       sugestoes:
                         type: array
                         items:
@@ -1176,17 +1288,12 @@ paths:
                           properties:
                             mercado:
                               type: string
-                              example: "Over 5.5 Cartões Totais"
+                              example: "Over 5.5 Cartoes Totais"
                             confianca:
                               type: number
                               format: float
-                              minimum: 1
-                              maximum: 5
-                              example: 4.9
-                              description: "Confiança ajustada pelo fator Must Win"
                             value_estimado:
                               type: string
-                              example: "+25%"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -1195,46 +1302,50 @@ paths:
   /analysis/complete:
     get:
       summary: Análise Completa de um Jogo
-      description: Retorna análise consolidada incluindo contexto, estatísticas, H2H, escanteios, cartões, lesões e previsões com fator Must Win. Consolida múltiplas chamadas em uma única requisição.
+      description: |
+        Consolida standings, H2H, Must Win e probabilidades em uma única resposta.
+        Economiza chamadas manuais a múltiplos endpoints.
+
+        **Atenção:** Faz até 4 chamadas à Sportradar internamente (respeite o rate limit).
       operationId: getAnalysisComplete
       tags:
         - analysis
       parameters:
+        - name: competition
+          in: query
+          required: true
+          description: URN da competição (ex. sr:competition:325)
+          schema:
+            type: string
+            example: "sr:competition:325"
         - name: team_home
           in: query
           required: true
-          description: ID do time mandante
+          description: URN do time mandante (ex. sr:competitor:1234)
           schema:
-            type: integer
-            example: 127
+            type: string
+            example: "sr:competitor:1234"
         - name: team_away
           in: query
           required: true
-          description: ID do time visitante
+          description: URN do time visitante (ex. sr:competitor:5678)
           schema:
-            type: integer
-            example: 121
-        - name: league
-          in: query
-          required: true
-          description: ID da liga
-          schema:
-            type: integer
-            example: 71
+            type: string
+            example: "sr:competitor:5678"
         - name: season
           in: query
           required: false
-          description: Ano da temporada (padrão = ano atual)
+          description: URN da temporada. Se omitido, detecta automaticamente.
           schema:
-            type: integer
-            example: 2025
+            type: string
+            example: "sr:season:106479"
         - name: fixture
           in: query
           required: false
-          description: ID do jogo específico (para incluir previsões IA)
+          description: URN do jogo específico para incluir probabilidades Sportradar
           schema:
-            type: integer
-            example: 1234567
+            type: string
+            example: "sr:sport_event:45678901"
       responses:
         "200":
           description: Análise completa gerada com sucesso
@@ -1250,17 +1361,23 @@ paths:
                     type: object
                     properties:
                       mandante_id:
-                        type: integer
-                        example: 127
+                        type: string
+                        example: "sr:competitor:1234"
+                      mandante_nome:
+                        type: string
+                        example: "Flamengo"
                       visitante_id:
-                        type: integer
-                        example: 121
-                      liga_id:
-                        type: integer
-                        example: 71
+                        type: string
+                        example: "sr:competitor:5678"
+                      visitante_nome:
+                        type: string
+                        example: "Palmeiras"
+                      competicao_id:
+                        type: string
+                        example: "sr:competition:325"
                       temporada:
                         type: string
-                        example: "2025"
+                        example: "sr:season:106479"
                   contexto:
                     type: object
                     properties:
@@ -1285,34 +1402,19 @@ paths:
                               pontos:
                                 type: integer
                                 example: 32
+                          total_times:
+                            type: integer
+                            example: 20
                       must_win:
                         type: object
                         properties:
                           mandante:
-                            type: object
-                            properties:
-                              score:
-                                type: number
-                                format: float
-                                example: 7.5
-                              nivel:
-                                type: string
-                                enum: ["CRÍTICO", "ALTO", "MODERADO", "BAIXO"]
-                                example: "ALTO"
-                              fatores:
-                                type: array
-                                items:
-                                  type: object
-                              recomendacao:
-                                type: string
+                            $ref: "#/components/schemas/MustWin"
                           visitante:
-                            type: object
+                            $ref: "#/components/schemas/MustWin"
                           analise:
                             type: string
-                            example: "Mais importante para o time da casa"
-                  estatisticas:
-                    type: object
-                    description: Estatísticas completas de ambos os times
+                            example: "Importancia equilibrada para ambos os times"
                   confronto_direto:
                     type: object
                     properties:
@@ -1333,62 +1435,27 @@ paths:
                             placar:
                               type: string
                               example: "2-1"
-                  analise_escanteios:
-                    type: object
-                    properties:
-                      estimativa_total:
-                        type: number
-                        format: float
-                        example: 10.5
-                      analise_must_win:
-                        type: object
-                        properties:
-                          fator_combinado:
-                            type: number
-                            format: float
-                            example: 6.3
-                          impacto:
-                            type: string
-                      sugestoes:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            mercado:
-                              type: string
-                              example: "Over 9.5 Escanteios"
-                            confianca:
-                              type: number
-                              example: 4.5
-                            value_estimado:
-                              type: string
-                              example: "+15%"
-                  analise_cartoes:
-                    type: object
-                    properties:
-                      estimativa_total:
-                        type: number
-                        format: float
-                        example: 5.5
-                      sugestoes:
-                        type: array
-                        items:
-                          type: object
-                  lesoes:
-                    type: object
-                    properties:
-                      mandante:
-                        type: array
-                        items:
-                          type: object
-                      visitante:
-                        type: array
-                        items:
-                          type: object
-                  predicoes:
+                  probabilidades:
                     type: object
                     nullable: true
-                    description: Previsões IA (apenas se fixture fornecido)
+                    description: Probabilidades Sportradar (apenas se fixture fornecido)
+                    properties:
+                      mercado:
+                        type: string
+                        example: "3way"
+                      vitoria_mandante:
+                        type: number
+                        example: 45.0
+                      empate:
+                        type: number
+                        example: 28.0
+                      vitoria_visitante:
+                        type: number
+                        example: 27.0
+                  analise_escanteios:
+                    type: object
+                  analise_cartoes:
+                    type: object
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
@@ -1401,6 +1468,7 @@ paths:
         Fórmula: (probabilidade × odd) - 1
         - Resultado > 0: Aposta com valor (recomendada)
         - Resultado < 0: Sem valor (evitar)
+        Combine com /predictions para obter probabilidades reais.
       operationId: getValueBet
       tags:
         - analysis
@@ -1417,13 +1485,13 @@ paths:
         - name: probability
           in: query
           required: true
-          description: Probabilidade estimada (0-1, ex. 0.50 = 50%)
+          description: Probabilidade estimada (0-1, ex. 0.45 = 45%)
           schema:
             type: number
             format: float
             minimum: 0.01
             maximum: 1.0
-            example: 0.50
+            example: 0.45
       responses:
         "200":
           description: Value calculado
@@ -1438,22 +1506,28 @@ paths:
                   value:
                     type: number
                     format: float
-                    example: 0.25
-                    description: "Valor positivo indica value bet"
+                    example: 0.125
+                    description: "Valor positivo = value bet"
+                  interpretation:
+                    type: string
+                    example: "Value Bet"
+                  recommendation:
+                    type: string
+                    enum: [Apostar, Evitar]
+                    example: "Apostar"
+                  formula:
+                    type: string
+                    example: "(0.45 x 2.50) - 1 = 0.125"
         "400":
           $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
 
   /news/context:
     get:
       summary: Notícias recentes de um time
       description: |
-        Busca notícias relevantes sobre:
-        - Lesões e suspensões
-        - Mudanças técnicas
-        - Clima do time
-        - Fontes: GE, ESPN
+        Busca notícias relevantes sobre lesões, suspensões, mudanças técnicas.
+        Fontes: GE Globo, ESPN Brasil.
+        Requer variável de ambiente NEWS_API_KEY configurada.
       operationId: getNewsContext
       tags:
         - news
@@ -1461,21 +1535,21 @@ paths:
         - name: team
           in: query
           required: true
-          description: Nome do time
+          description: Nome do time (ex. Flamengo)
           schema:
             type: string
             example: "Flamengo"
         - name: league
           in: query
           required: false
-          description: Nome da liga (opcional)
+          description: Nome da liga para refinar a busca
           schema:
             type: string
-            example: "Brasileirão"
+            example: "Brasileirao"
         - name: days
           in: query
           required: false
-          description: Últimos N dias de notícias
+          description: Últimos N dias de notícias (1-30)
           schema:
             type: integer
             default: 3
@@ -1496,12 +1570,12 @@ paths:
                   team:
                     type: string
                     example: "Flamengo"
-                  league:
-                    type: string
-                    example: "Brasileirão"
+                  days_searched:
+                    type: integer
+                    example: 3
                   total:
                     type: integer
-                    example: 5
+                    example: 4
                   noticias:
                     type: array
                     items:
@@ -1509,22 +1583,19 @@ paths:
                       properties:
                         titulo:
                           type: string
-                          example: "Neymar sofre lesão no tornozelo"
                         fonte:
                           type: string
-                          example: "GE Globo"
+                          example: "GE - Globo Esporte"
                         publicado_em:
                           type: string
                           format: date-time
-                          example: "2025-11-12T15:30:00Z"
                         url:
                           type: string
                           format: uri
-                          example: "https://ge.globo.com/..."
         "400":
           $ref: "#/components/responses/BadRequest"
-        "500":
-          $ref: "#/components/responses/InternalError"
+        "503":
+          description: NEWS_API_KEY não configurada
 
 components:
   schemas:
@@ -1536,70 +1607,57 @@ components:
           example: false
         error:
           type: string
-          example: "Erro ao processar requisição"
-      required:
-        - ok
-        - error
+          example: "Mensagem de erro"
 
-    SuccessResponse:
+    MustWin:
       type: object
+      description: Fator de pressão por resultado do time
       properties:
-        ok:
-          type: boolean
-          example: true
-      required:
-        - ok
-
-    Fixture:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 1234567
-        data:
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 10
+          example: 7.5
+          description: "Score de 0-10 indicando pressão por resultado"
+        nivel:
           type: string
-          format: date-time
-          example: "2025-11-13T20:00:00-03:00"
-        status:
+          enum: [CRITICO, ALTO, MODERADO, BAIXO]
+          example: "ALTO"
+        fatores:
+          type: array
+          items:
+            type: object
+            properties:
+              fator:
+                type: string
+                example: "Zona de Rebaixamento"
+              impacto:
+                type: string
+                example: "CRITICO"
+              descricao:
+                type: string
+        recomendacao:
           type: string
-          example: "NS"
-        mandante:
-          type: string
-          example: "Flamengo"
-        visitante:
-          type: string
-          example: "Palmeiras"
-
-    League:
-      type: object
-      properties:
-        id:
-          type: integer
-          example: 71
-        name:
-          type: string
-          example: "Brasileirão Série A"
+          example: "Time precisa pontuar. Fator motivacional significativo."
 
   responses:
     BadRequest:
-      description: Requisição inválida - parâmetros ausentes ou incorretos
+      description: Parâmetro inválido ou ausente
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            ok: false
+            error: "Parametro 'competition' e obrigatorio (ex: sr:competition:325)"
 
     InternalError:
-      description: Erro interno do servidor ou API externa
+      description: Erro interno ou falha na Sportradar API
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-      description: Chave de API (apenas para uso interno)
-
-security: []
+          example:
+            ok: false
+            error: "Falha apos 3 tentativas: HTTP 503"
