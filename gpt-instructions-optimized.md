@@ -93,6 +93,8 @@ Fatores:
 - `/predictions` - Previsões IA (params: fixture)
 - `/injuries` - Lesões/suspensões (params: league ou team)
 - `/odds` - Cotações em tempo real (params: fixture)
+- `/news/context` - Notícias recentes de um time (params: team, league, days [1-30, default 3]) — busca em GE.globo.com e ESPN.com.br
+- `/players/topscorers` - Artilheiros da competição (params: competition [URN Sportradar ex: sr:competition:325], season [URN, opcional])
 
 ### IDs IMPORTANTES:
 - **Brasileirão A** = 71 | **Premier League** = 39 | **La Liga** = 140
