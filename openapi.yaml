@@ -572,8 +572,10 @@ paths:
                     properties:
                       mandante:
                         type: object
+                        additionalProperties: true
                       visitante:
                         type: object
+                        additionalProperties: true
                   must_win:
                     type: object
                     properties:
@@ -696,6 +698,7 @@ paths:
                             type: array
                             items:
                               type: object
+                              additionalProperties: true
                   momentos_chave:
                     type: array
                     items:
@@ -1545,8 +1548,10 @@ paths:
                         example: 27.0
                   analise_escanteios:
                     type: object
+                    additionalProperties: true
                   analise_cartoes:
                     type: object
+                    additionalProperties: true
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":
