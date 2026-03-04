@@ -350,9 +350,17 @@ paths:
                         mandante:
                           type: string
                           example: "Flamengo"
+                        mandante_id:
+                          type: string
+                          nullable: true
+                          example: "sr:competitor:4783"
                         visitante:
                           type: string
                           example: "Palmeiras"
+                        visitante_id:
+                          type: string
+                          nullable: true
+                          example: "sr:competitor:4785"
                         placar:
                           type: string
                           nullable: true

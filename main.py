@@ -604,14 +604,17 @@ def fixtures():
 
         competitors = sport_event.get("competitors", [])
         home_name = away_name = None
+        home_id = away_id = None
         home_score = away_score = None
 
         for c in competitors:
             q = c.get("qualifier", "")
             if q == "home":
                 home_name = c.get("name")
+                home_id = c.get("id")
             elif q == "away":
                 away_name = c.get("name")
+                away_id = c.get("id")
 
         status_str = status_obj.get("status", "")
         home_score = status_obj.get("home_score")
@@ -626,7 +629,9 @@ def fixtures():
             "competicao": comp.get("name"),
             "competicao_id": comp_id,
             "mandante": home_name,
+            "mandante_id": home_id,
             "visitante": away_name,
+            "visitante_id": away_id,
             "placar": f"{home_score}x{away_score}" if home_score is not None else None
         })
 
