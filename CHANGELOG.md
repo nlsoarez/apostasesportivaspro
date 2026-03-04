@@ -1,157 +1,105 @@
-# 📋 Changelog - Apostas Esportivas Pro API
+# 📋 Changelog — Apostas Esportivas Pro API
 
-Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
+Todas as mudanças notáveis serão documentadas aqui.
 
-O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
-e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
+Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
+seguindo [Semantic Versioning](https://semver.org/lang/pt-BR/).
+
+---
+
+## [6.1] - 2026-03-04
+
+### Corrigido
+- 🐛 **`/fixtures` agora retorna `mandante_id` e `visitante_id`** (URNs Sportradar dos times)
+  - GPT pode obter os IDs diretamente sem chamada adicional
+  - Protocolo de análise automática agora funcional end-to-end
+- 🐛 **Instruções GPT corrigidas**: parâmetro `league` substituído por `competition` em todos os lugares
+- 🐛 **IDs das ligas corrigidos**: IDs inteiros (API-Football) substituídos por URNs Sportradar
+  - Antes: `league=39` → Agora: `competition=sr:competition:17`
+  - Antes: `league=71` → Agora: `competition=sr:competition:325`
+
+### Atualizado
+- 📝 `openapi.yaml`: campos `mandante_id` e `visitante_id` adicionados ao schema de `/fixtures`
+- 📝 `gpt-instructions-optimized.md`: tabela completa de URNs das 10 principais competições
+- 📝 `gpt-instructions-chatgpt.md`: tabela completa de URNs e protocolo corrigido
+- 📝 `README.md`: reescrito completamente para v6.1
+
+---
+
+## [6.0] - 2026-02-01
+
+### 🎉 Major Release — Migração para Sportradar Soccer v4
+
+### Mudado (Breaking)
+- 🔄 **Migração completa de API-Sports v3 → Sportradar Soccer v4**
+  - Novo formato de IDs: URNs como `sr:competition:325`, `sr:competitor:4783`
+  - Novos endpoints Sportradar: `/schedules`, `/competitions`, `/competitors`
+  - Taxa de chamadas: 1 req/s com retry automático (3x com backoff exponencial)
+
+### Adicionado
+- ✨ **`/analysis/complete`** — endpoint consolidado que substitui 7+ chamadas separadas
+  - Retorna: contexto, stats, H2H, escanteios, cartões, lesões, previsões, Must Win
+  - Auto-detecta temporada atual se `season` omitido
+- ✨ **`/competitions`** — lista 22 competições suportadas com URNs Sportradar
+- ✨ **`/seasons`** — temporadas disponíveis por competição
+- ✨ **`/fixtures/live/analysis`** — análise ao vivo com Fator Must Win
+- ✨ **`/fixtures/live/minute-by-minute`** — timeline de eventos do jogo ao vivo
+- ✨ **Fator Must Win** — score 0-10 de pressão por resultado integrado em todas as análises
+- ✨ **Auto-detecção de temporada** via `_get_current_season_urn()` (sem precisar informar)
+- ✨ **`/news/context`** — notícias de GE.globo.com e ESPN.com.br por time/liga
+
+### Deploy
+- 🚀 Migrado de Vercel Serverless → Railway Container
+  - Sem cold starts
+  - Timeout ilimitado para chamadas longas
+  - `nixpacks.toml` e `railway.json` adicionados
+  - `Procfile` atualizado para gunicorn multi-worker
+
+### Dependências
+- ➕ `PyYAML==6.0.1` mantido para parsing do OpenAPI
 
 ---
 
 ## [5.1] - 2026-03-03
 
 ### Melhorado
-- 🔐 **Tratamento de erros de autenticação na API-Sports**
-  - HTTP 401: Mensagem clara indicando chave inválida ou expirada com link para renovação
-  - HTTP 403: Mensagem indicando sem permissão no plano atual
-  - Antes retornava apenas "Erro HTTP 401/403" sem orientação
-
-- 🩺 **Health check `/health` aprimorado com informações da assinatura**
-  - Plano atual (Free, Pro, etc.)
-  - Status da assinatura (ativa ou expirada)
-  - Data de vencimento da assinatura
-  - Quota diária: requisições usadas, limite e percentual
-  - Email da conta associada
-  - Campo `action` com instrução de resolução quando há problemas
+- 🔐 Tratamento de erros de autenticação (HTTP 401/403) com mensagens claras
+- 🩺 Health check `/health` com informações detalhadas da assinatura
 
 ### Corrigido
-- 🐛 Quando API_KEY expira, `/health` agora mostra `"api_sports_status": "invalid_key"` com ação de correção
-- 🐛 Quando quota diária é atingida, mostra `"api_sports_status": "quota_exceeded"`
-- 🐛 Quando assinatura vence, mostra `"api_sports_status": "subscription_expired"`
+- 🐛 `/health` agora mostra status correto quando API_KEY expira, quota excedida ou assinatura vence
 
 ---
 
 ## [5.0] - 2025-11-13
 
-### 🎉 Major Release - Melhorias de Qualidade e Documentação
-
 ### Adicionado
-- ✨ **Schema OpenAPI 3.1.0 completo** (`openapi.yaml` e endpoint `/openapi.json`)
-  - Documentação completa de todos os 14 endpoints
-  - Exemplos de requisição e resposta
-  - Parâmetros com validações e constraints
-  - Componentes reutilizáveis
-
-- ✨ **Novo endpoint `/leagues`**
-  - Lista todas as 22 ligas suportadas
-  - Categorização por região (Brasil, Europa, Internacional, etc.)
-  - Total de ligas e IDs organizados
-
-- 🩺 **Health check avançado** em `/health`
-  - Timestamp da requisição
-  - Teste de conectividade com API-Sports
-  - Status detalhado da API externa
-  - Versão da API
-
-- 📚 **Docstrings completas**
-  - Todas as funções documentadas
-  - Descrição de parâmetros e retornos
-  - Exemplos de uso
+- ✨ Schema OpenAPI 3.1.0 completo (`openapi.yaml` + `/openapi.json`)
+- ✨ Endpoint `/leagues` — lista 22 ligas suportadas
+- 🩺 Health check avançado com teste de conectividade
+- 📚 Docstrings completas em todas as funções
 
 ### Melhorado
-- 🔒 **Validações robustas de parâmetros**
-  - Funções auxiliares: `validate_numeric_param()` e `validate_integer_param()`
-  - Validação de ranges (odds: 1.01-100.0, probability: 0.01-1.0)
-  - Mensagens de erro com exemplos práticos
-  - Tratamento específico por tipo de dado
-
-- 📋 **Constantes configuráveis**
-  - `API_VERSION = "5.0"`
-  - `DEFAULT_SEASON = 2025`
-  - `DEFAULT_TIMEZONE = "America/Sao_Paulo"`
-  - `DEFAULT_NEWS_DAYS = 3`
-  - `MAX_NEWS_DAYS = 30`
-  - `MAX_LIVE_FIXTURES = 20`
-  - `MAX_H2H_RESULTS = 10`
-  - `DEFAULT_CORNERS_ESTIMATE = 10.0`
-  - `DEFAULT_CARDS_ESTIMATE = 5.5`
-  - Eliminação de "magic numbers" no código
-
-- 📊 **Endpoint `/analysis/value` melhorado**
-  - Validação rigorosa de odd e probability
-  - Interpretação do resultado (Value Bet ✅ ou Sem Value ❌)
-  - Recomendação (Apostar ou Evitar)
-  - Fórmula exibida na resposta
-
-- ⚡ **Logging estruturado**
-  - Formato padronizado com timestamp
-  - Níveis apropriados (INFO, WARNING, ERROR)
-  - Contexto detalhado nos erros
-
-- 🔧 **Validação de API_KEY na inicialização**
-  - Aviso crítico se API_KEY não estiver configurada
-  - Falha rápida com mensagem clara
-
-- 🌍 **Dicionário de ligas suportadas**
-  - 22 ligas organizadas por região
-  - Brasil: 5 ligas (Brasileirão A/B, Copa do Brasil, Carioca, Paulista)
-  - Europa: 7 ligas (Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Primeira Liga, Eredivisie)
-  - Internacional: 5 competições (Champions, Europa, Conference League, Libertadores, Sul-Americana)
-  - Américas: 2 ligas (MLS, Liga MX)
-  - Mundial: 2 torneios (Copa do Mundo, Eurocopa)
-
-### Corrigido
-- 🐛 Magic numbers substituídos por constantes nomeadas
-- 🐛 Tratamento de exceções melhorado em `/analysis/corners` e `/analysis/cards`
-- 🐛 Validação de formato h2h em `/fixtures/headtohead`
-- 🐛 Validação de range de days em `/news/context` (1-30)
-- 🐛 Mensagens de erro mais descritivas em todos os endpoints
-
-### Dependências
-- ➕ Adicionado: `PyYAML==6.0.1` (para parsing do OpenAPI)
-
-### Documentação
-- 📝 README atualizado com changelog da v5.0
-- 📝 Novo arquivo `CHANGELOG.md` criado
-- 📝 Schema OpenAPI publicado e acessível via API
-
-### Endpoints Atualizados
-Todos os endpoints receberam melhorias:
-1. `GET /` - Informações da API com link para documentação
-2. `GET /health` - Health check avançado
-3. `GET /openapi.json` - Schema OpenAPI completo
-4. `GET /leagues` - Lista de ligas suportadas (NOVO)
-5. `GET /fixtures` - Validações melhoradas
-6. `GET /fixtures/headtohead` - Validação de formato
-7. `GET /fixtures/live` - Inclui placar dos jogos
-8. `GET /standings` - Validações de parâmetros
-9. `GET /teams/statistics` - Código limpo
-10. `GET /players/topscorers` - Código limpo
-11. `GET /injuries` - Código limpo
-12. `GET /odds` - Código limpo
-13. `GET /predictions` - Código limpo
-14. `GET /analysis/corners` - Validações e constantes
-15. `GET /analysis/cards` - Validações e constantes
-16. `GET /analysis/value` - Melhorias significativas
-17. `GET /news/context` - Validação de range e constantes
+- 🔒 Validações robustas de parâmetros com `validate_numeric_param()` e `validate_urn_param()`
+- 📋 Constantes nomeadas (sem magic numbers): `DEFAULT_CORNERS_ESTIMATE`, `MAX_H2H_RESULTS`, etc.
+- 📊 `/analysis/value` com interpretação, recomendação e fórmula exibida
+- ⚡ Logging estruturado com timestamps
+- 🔧 Validação de `API_KEY` na inicialização
 
 ---
 
 ## [4.2] - 2025-11-10
 
 ### Adicionado
-- Suporte básico a parâmetros timezone e status
+- Suporte básico a parâmetros `timezone` e `status`
 
 ---
 
 ## [3.1.0] - 2024-11-06
 
 ### Adicionado
-- ✨ Parâmetro `status` em `/fixtures` (FT, NS, LIVE, etc.)
+- ✨ Parâmetro `status` em `/fixtures`
 - ✨ Parâmetro `timezone` em `/fixtures` (padrão: America/Sao_Paulo)
-
-### Melhorado
-- 💬 Mensagens de erro melhoradas
-- 🎯 Tratamento para "nenhum jogo encontrado"
 
 ### Corrigido
 - 🐛 Validação de `league_name` nas respostas
@@ -160,52 +108,38 @@ Todos os endpoints receberam melhorias:
 
 ## [3.0.0] - 2024-10-15
 
-### 🎉 Major Release - Endpoints Avançados
-
 ### Adicionado
-- ✨ Endpoint `/fixtures/headtohead` (H2H - Confronto direto)
-- ✨ Endpoint `/injuries` (Lesões e suspensões)
-- ✨ Endpoint `/odds` (Odds em tempo real)
-- ✨ Endpoint `/predictions` (Previsões IA da API-Sports)
-- ✨ Endpoint `/fixtures/live` (Jogos ao vivo)
-
-### Melhorado
-- 📊 Análises 3x mais completas com dados contextuais
+- ✨ `/fixtures/headtohead` (H2H)
+- ✨ `/injuries` (lesões e suspensões)
+- ✨ `/odds` (odds em tempo real)
+- ✨ `/predictions` (previsões IA)
+- ✨ `/fixtures/live` (jogos ao vivo)
 
 ---
 
 ## [2.0.0] - 2024-09-20
 
-### 🎉 Major Release - Deploy e Infraestrutura
-
-### Adicionado
-- 🔐 Suporte a variáveis de ambiente (.env)
-- 📝 Documentação completa no README
-
 ### Mudado
-- 🔄 Migração de Render.com para Vercel
-- 🌐 Autenticação API-Sports corrigida
+- 🔄 Migração de Render.com → Vercel
+- 🔐 Variáveis de ambiente implementadas
 
 ---
 
 ## [1.0.0] - 2024-08-01
 
-### 🎉 Release Inicial
-
 ### Adicionado
-- ✨ Endpoints básicos: `/fixtures`, `/standings`, `/teams/statistics`
-- ✨ Integração com API-Sports
-- ✨ Deploy inicial no Render.com
-- ✨ Suporte a múltiplas ligas
+- ✨ Release inicial: `/fixtures`, `/standings`, `/teams/statistics`
+- ✨ Integração com API-Sports (substituída na v6.0)
+- ✨ Deploy no Render.com
 
 ---
 
-## Links Úteis
+## Links
 
-- [API Documentation](https://apostasesportivas.vercel.app/)
-- [OpenAPI Schema](https://apostasesportivas.vercel.app/openapi.json)
-- [GitHub Repository](https://github.com/nlsoarez/apostasesportivaspro)
-- [API-Sports](https://api-sports.io/)
+- [API em produção](https://apostasesportivaspro.up.railway.app)
+- [OpenAPI Schema](https://apostasesportivaspro.up.railway.app/openapi.json)
+- [GitHub](https://github.com/nlsoarez/apostasesportivaspro)
+- [Sportradar Developer](https://developer.sportradar.com/)
 
 ---
 
