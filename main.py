@@ -10,6 +10,7 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from functools import lru_cache
+import threading
 
 # =======================
 # Configurações iniciais
@@ -29,8 +30,7 @@ logger = logging.getLogger(__name__)
 # =======================
 # Constantes da aplicação
 # =======================
-API_VERSION = "5.0"
-DEFAULT_SEASON = datetime.now().year  # Detecta automaticamente o ano atual
+API_VERSION = "6.0"
 DEFAULT_TIMEZONE = "America/Sao_Paulo"
 DEFAULT_NEWS_DAYS = 3
 MAX_NEWS_DAYS = 30
@@ -45,305 +45,353 @@ MAX_ODD_VALUE = 100.0
 MIN_PROBABILITY = 0.01
 MAX_PROBABILITY = 1.0
 
-# Variáveis de ambiente
+# Sportradar API
 API_KEY = os.getenv("API_KEY")
-API_HOST = "v3.football.api-sports.io"
+SPORTRADAR_BASE_URL = "https://api.sportradar.com/soccer/trial/v4/en"
 API_TIMEOUT = float(os.getenv("API_TIMEOUT", "15"))
 API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "3"))
-API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "1"))
-HEADERS_API = {"x-apisports-key": API_KEY}
+API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "1.2"))  # Sportradar trial: 1 req/sec
 NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
+
+# Rate limiter para Sportradar trial (1 req/sec)
+_last_request_time = 0.0
+_rate_limit_lock = threading.Lock()
+
+def _rate_limit():
+    """Garante no mínimo 1 segundo entre requisições (Sportradar trial: QPS=1)."""
+    global _last_request_time
+    with _rate_limit_lock:
+        now = time.time()
+        elapsed = now - _last_request_time
+        if elapsed < 1.1:
+            time.sleep(1.1 - elapsed)
+        _last_request_time = time.time()
 
 # Validação crítica de API_KEY
 if not API_KEY:
-    logger.error("⚠️  ERRO CRÍTICO: API_KEY não configurada!")
-    logger.error("Configure a variável de ambiente API_KEY antes de iniciar.")
+    logger.error("ERRO CRITICO: API_KEY nao configurada!")
+    logger.error("Configure a variavel de ambiente API_KEY com sua chave Sportradar.")
 
 # =======================
-# Ligas suportadas
+# Competições suportadas (Sportradar URNs)
 # =======================
-SUPPORTED_LEAGUES = {
+SUPPORTED_COMPETITIONS = {
     # Brasil
-    71: "Brasileirão Série A",
-    72: "Brasileirão Série B",
-    73: "Copa do Brasil",
-    75: "Campeonato Carioca",
-    76: "Campeonato Paulista",
+    "sr:competition:325": "Brasileirao Serie A",
+    "sr:competition:390": "Brasileirao Serie B",
+    "sr:competition:531": "Copa do Brasil",
+    "sr:competition:621": "Campeonato Carioca",
+    "sr:competition:624": "Campeonato Paulista",
     # Europa
-    39: "Premier League",
-    140: "La Liga",
-    135: "Serie A",
-    78: "Bundesliga",
-    61: "Ligue 1",
-    94: "Primeira Liga",
-    88: "Eredivisie",
-    # Internacionais
-    2: "UEFA Champions League",
-    3: "UEFA Europa League",
-    848: "UEFA Conference League",
-    13: "Copa Libertadores",
-    11: "Copa Sul-Americana",
+    "sr:competition:17":  "Premier League",
+    "sr:competition:8":   "La Liga",
+    "sr:competition:23":  "Serie A (Italia)",
+    "sr:competition:35":  "Bundesliga",
+    "sr:competition:34":  "Ligue 1",
+    "sr:competition:238": "Primeira Liga",
+    "sr:competition:37":  "Eredivisie",
+    # Internacional / Clubes
+    "sr:competition:7":   "UEFA Champions League",
+    "sr:competition:679": "UEFA Europa League",
+    "sr:competition:929": "UEFA Conference League",
+    "sr:competition:384": "Copa Libertadores",
+    "sr:competition:480": "Copa Sul-Americana",
     # Américas
-    253: "MLS",
-    128: "Liga MX",
-    # Outros
-    1: "World Cup",
-    960: "Euro Championship"
+    "sr:competition:242": "MLS",
+    "sr:competition:316": "Liga MX",
+    # Seleções
+    "sr:competition:1":   "Copa do Mundo FIFA",
+    "sr:competition:9":   "Eurocopa",
+    "sr:competition:133": "Copa America"
 }
 
 # =======================
 # Funções utilitárias
 # =======================
-def call_api_football(endpoint, params, max_retries=None):
+def call_sportradar(path, params=None, max_retries=None):
     """
-    Chama a API-Football com retry automático e exponential backoff.
+    Chama a Sportradar Soccer API v4 com rate limiting e retry automático.
 
     Args:
-        endpoint (str): Endpoint da API (ex: /fixtures)
-        params (dict): Parâmetros da query string
-        max_retries (int): Número máximo de tentativas (default: API_MAX_RETRIES)
+        path (str): Caminho do endpoint (ex: /schedules/2025-03-01/summaries.json)
+        params (dict): Parâmetros adicionais da query string (sem api_key)
+        max_retries (int): Número máximo de tentativas
 
     Returns:
         tuple: (data, error) onde data é o JSON de resposta ou None em caso de erro
     """
     if not API_KEY:
-        return None, "API_KEY não configurada"
+        return None, "API_KEY nao configurada. Configure sua chave Sportradar."
 
     if max_retries is None:
         max_retries = API_MAX_RETRIES
 
-    url = f"https://{API_HOST}{endpoint}"
+    url = f"{SPORTRADAR_BASE_URL}{path}"
+    query_params = {"api_key": API_KEY}
+    if params:
+        query_params.update(params)
+
     last_error = None
 
     for attempt in range(max_retries):
         try:
-            # Configura timeout com margem de segurança
-            timeout = API_TIMEOUT + (attempt * 2)  # Aumenta timeout a cada tentativa
-
-            response = requests.get(
-                url,
-                headers=HEADERS_API,
-                params=params,
-                timeout=timeout
-            )
+            _rate_limit()
+            timeout = API_TIMEOUT + (attempt * 2)
+            response = requests.get(url, params=query_params, timeout=timeout)
 
             if response.status_code == 200:
-                data = response.json()
-                if "errors" in data and data["errors"]:
-                    return None, str(data["errors"])
-                return data, None
+                return response.json(), None
 
-            # Erros temporários que podem ser retentados
+            elif response.status_code == 401:
+                logger.error(f"[Sportradar] Chave invalida (401) -> {path}")
+                return None, "API_KEY invalida ou expirada. Verifique sua chave no portal Sportradar."
+
+            elif response.status_code == 403:
+                logger.error(f"[Sportradar] Sem permissao (403) -> {path}")
+                return None, "Sem permissao para este endpoint. Verifique os pacotes do seu plano Sportradar."
+
+            elif response.status_code == 404:
+                logger.warning(f"[Sportradar] Nao encontrado (404) -> {path}")
+                return None, f"Recurso nao encontrado: {path}"
+
             elif response.status_code in [429, 500, 502, 503, 504]:
                 last_error = f"HTTP {response.status_code}"
-                logger.warning(f"[API Retry {attempt+1}/{max_retries}] {last_error} -> {endpoint}")
-
+                logger.warning(f"[Sportradar Retry {attempt+1}/{max_retries}] {last_error} -> {path}")
                 if attempt < max_retries - 1:
-                    delay = API_RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                    delay = API_RETRY_DELAY * (2 ** attempt)
                     time.sleep(delay)
                     continue
-
-            # Erros permanentes (não tentar novamente)
             else:
-                logger.error(f"[API] HTTP {response.status_code} -> {endpoint}")
+                logger.error(f"[Sportradar] HTTP {response.status_code} -> {path}")
                 return None, f"Erro HTTP {response.status_code}"
 
-        except requests.exceptions.Timeout as e:
-            last_error = "Timeout na requisição"
-            logger.warning(f"[API Timeout {attempt+1}/{max_retries}] {endpoint}")
-
+        except requests.exceptions.Timeout:
+            last_error = "Timeout na requisicao"
+            logger.warning(f"[Sportradar Timeout {attempt+1}/{max_retries}] {path}")
             if attempt < max_retries - 1:
-                delay = API_RETRY_DELAY * (2 ** attempt)
-                time.sleep(delay)
+                time.sleep(API_RETRY_DELAY * (2 ** attempt))
                 continue
 
-        except requests.exceptions.ConnectionError as e:
-            last_error = "Erro de conexão"
-            logger.warning(f"[API Connection Error {attempt+1}/{max_retries}] {endpoint}")
-
+        except requests.exceptions.ConnectionError:
+            last_error = "Erro de conexao"
+            logger.warning(f"[Sportradar Connection Error {attempt+1}/{max_retries}] {path}")
             if attempt < max_retries - 1:
-                delay = API_RETRY_DELAY * (2 ** attempt)
-                time.sleep(delay)
+                time.sleep(API_RETRY_DELAY * (2 ** attempt))
                 continue
 
         except Exception as e:
             last_error = str(e)
-            logger.error(f"[API Exception] {last_error}")
+            logger.error(f"[Sportradar Exception] {last_error}")
             return None, last_error
 
-    # Se chegou aqui, todas as tentativas falharam
-    logger.error(f"[API] Todas as {max_retries} tentativas falharam para {endpoint}")
-    return None, f"Falha após {max_retries} tentativas: {last_error}"
+    logger.error(f"[Sportradar] Todas as {max_retries} tentativas falharam para {path}")
+    return None, f"Falha apos {max_retries} tentativas: {last_error}"
 
 
 def error_response(msg, status=400):
-    """
-    Retorna resposta de erro padronizada.
-
-    Args:
-        msg (str): Mensagem de erro
-        status (int): Código HTTP de status
-
-    Returns:
-        tuple: (Response, status_code)
-    """
     return jsonify({"ok": False, "error": msg}), status
 
 
 def validate_numeric_param(value, param_name, min_val=None, max_val=None, required=True):
-    """
-    Valida parâmetro numérico com ranges opcionais.
-
-    Args:
-        value: Valor a validar
-        param_name (str): Nome do parâmetro (para mensagem de erro)
-        min_val (float): Valor mínimo aceitável
-        max_val (float): Valor máximo aceitável
-        required (bool): Se o parâmetro é obrigatório
-
-    Returns:
-        tuple: (float_value, error_message) onde error_message é None se válido
-    """
     if value is None:
         if required:
-            return None, f"Parâmetro '{param_name}' é obrigatório"
+            return None, f"Parametro '{param_name}' e obrigatorio"
         return None, None
-
     try:
         num_value = float(value)
     except (ValueError, TypeError):
-        return None, f"Parâmetro '{param_name}' deve ser numérico"
-
+        return None, f"Parametro '{param_name}' deve ser numerico"
     if min_val is not None and num_value < min_val:
-        return None, f"Parâmetro '{param_name}' deve ser >= {min_val}"
-
+        return None, f"Parametro '{param_name}' deve ser >= {min_val}"
     if max_val is not None and num_value > max_val:
-        return None, f"Parâmetro '{param_name}' deve ser <= {max_val}"
-
+        return None, f"Parametro '{param_name}' deve ser <= {max_val}"
     return num_value, None
 
 
-def validate_integer_param(value, param_name, required=True):
-    """
-    Valida parâmetro inteiro.
-
-    Args:
-        value: Valor a validar
-        param_name (str): Nome do parâmetro
-        required (bool): Se é obrigatório
-
-    Returns:
-        tuple: (int_value, error_message)
-    """
-    if value is None:
+def validate_urn_param(value, param_name, prefix="sr:", required=True):
+    """Valida um parâmetro URN do Sportradar (ex: sr:competition:325)."""
+    if not value:
         if required:
-            return None, f"Parâmetro '{param_name}' é obrigatório"
+            return None, f"Parametro '{param_name}' e obrigatorio (ex: sr:competition:325)"
         return None, None
-
-    try:
-        int_value = int(value)
-        return int_value, None
-    except (ValueError, TypeError):
-        return None, f"Parâmetro '{param_name}' deve ser um inteiro válido"
+    if not str(value).startswith(prefix):
+        return None, f"Parametro '{param_name}' deve ser um URN Sportradar valido (ex: sr:competition:325)"
+    return str(value), None
 
 
-def calculate_must_win_factor(team_stats, standings_position=None, total_teams=None):
+def calculate_must_win_factor(form_str=None, position=None, total_teams=None):
     """
     Calcula o fator 'Must Win' para um time baseado em sua situação.
 
-    Args:
-        team_stats (dict): Estatísticas do time
-        standings_position (int): Posição atual na tabela
-        total_teams (int): Total de times na liga
-
     Returns:
-        dict: Informações sobre o fator Must Win com score de 0-10
+        dict com score (0-10), nivel e fatores
     """
-    must_win_score = 5.0  # Score neutro
+    must_win_score = 5.0
     factors = []
 
-    # Análise de posição na tabela (se disponível)
-    if standings_position and total_teams:
-        # Zona de rebaixamento (geralmente últimos 4)
+    if position and total_teams:
         relegation_zone = total_teams - 3
-        # Zona de classificação para competições (geralmente top 6)
         classification_zone = 6
-
-        if standings_position >= relegation_zone:
+        if position >= relegation_zone:
             must_win_score += 3.0
             factors.append({
                 "fator": "Zona de Rebaixamento",
-                "impacto": "CRÍTICO",
-                "descricao": f"Time na {standings_position}ª posição (zona de rebaixamento)"
+                "impacto": "CRITICO",
+                "descricao": f"Time na {position}a posicao (zona de rebaixamento)"
             })
-        elif standings_position >= (relegation_zone - 3):
+        elif position >= (relegation_zone - 3):
             must_win_score += 2.0
             factors.append({
-                "fator": "Próximo à Zona de Rebaixamento",
+                "fator": "Proximo a Zona de Rebaixamento",
                 "impacto": "ALTO",
-                "descricao": f"Time próximo da zona perigosa ({standings_position}ª posição)"
+                "descricao": f"Time proximo da zona perigosa ({position}a posicao)"
             })
-        elif standings_position <= classification_zone:
+        elif position <= classification_zone:
             must_win_score += 1.5
             factors.append({
-                "fator": "Briga por Classificação",
+                "fator": "Briga por Classificacao",
                 "impacto": "MODERADO",
-                "descricao": f"Time brigando por vaga em competições ({standings_position}ª posição)"
+                "descricao": f"Time brigando por vaga em competicoes ({position}a posicao)"
             })
 
-    # Análise de sequência de resultados
-    if team_stats:
+    if form_str:
         try:
-            form = team_stats.get("form", "")
-            if form:
-                # Contar derrotas recentes (L = Loss)
-                recent_losses = form[-5:].count("L")
-                recent_draws = form[-5:].count("D")
-                recent_wins = form[-5:].count("W")
-
-                if recent_losses >= 3:
-                    must_win_score += 2.0
-                    factors.append({
-                        "fator": "Sequência Negativa",
-                        "impacto": "ALTO",
-                        "descricao": f"{recent_losses} derrotas nos últimos 5 jogos"
-                    })
-                elif recent_losses >= 2 and recent_draws >= 2:
-                    must_win_score += 1.5
-                    factors.append({
-                        "fator": "Momento Instável",
-                        "impacto": "MODERADO",
-                        "descricao": "Sequência inconsistente de resultados"
-                    })
-                elif recent_wins >= 4:
-                    must_win_score -= 1.0
-                    factors.append({
-                        "fator": "Boa Sequência",
-                        "impacto": "BAIXO",
-                        "descricao": f"{recent_wins} vitórias nos últimos 5 jogos (pressão menor)"
-                    })
-        except:
+            recent_losses = form_str[-5:].count("L")
+            recent_draws = form_str[-5:].count("D")
+            recent_wins = form_str[-5:].count("W")
+            if recent_losses >= 3:
+                must_win_score += 2.0
+                factors.append({
+                    "fator": "Sequencia Negativa",
+                    "impacto": "ALTO",
+                    "descricao": f"{recent_losses} derrotas nos ultimos 5 jogos"
+                })
+            elif recent_losses >= 2 and recent_draws >= 2:
+                must_win_score += 1.5
+                factors.append({
+                    "fator": "Momento Instavel",
+                    "impacto": "MODERADO",
+                    "descricao": "Sequencia inconsistente de resultados"
+                })
+            elif recent_wins >= 4:
+                must_win_score -= 1.0
+                factors.append({
+                    "fator": "Boa Sequencia",
+                    "impacto": "BAIXO",
+                    "descricao": f"{recent_wins} vitorias nos ultimos 5 jogos"
+                })
+        except Exception:
             pass
 
-    # Normalizar score entre 0-10
     must_win_score = max(0, min(10, must_win_score))
-
     return {
         "score": round(must_win_score, 1),
         "nivel": (
-            "CRÍTICO" if must_win_score >= 8 else
+            "CRITICO" if must_win_score >= 8 else
             "ALTO" if must_win_score >= 6.5 else
             "MODERADO" if must_win_score >= 5 else
             "BAIXO"
         ),
         "fatores": factors,
         "recomendacao": (
-            "Time sob EXTREMA pressão por resultado. Análise de motivação é crucial." if must_win_score >= 8 else
+            "Time sob EXTREMA pressao por resultado. Analise de motivacao e crucial." if must_win_score >= 8 else
             "Time precisa pontuar. Fator motivacional significativo." if must_win_score >= 6.5 else
-            "Jogo importante, mas sem pressão extrema." if must_win_score >= 5 else
-            "Time em situação confortável."
+            "Jogo importante, mas sem pressao extrema." if must_win_score >= 5 else
+            "Time em situacao confortavel."
         )
     }
+
+
+def _get_current_season_urn(competition_urn):
+    """
+    Busca a URN da temporada atual (mais recente) para uma competição.
+    Retorna (season_urn, error).
+    """
+    comp_id = competition_urn.replace(":", "%3A") if "%" not in competition_urn else competition_urn
+    data, error = call_sportradar(f"/competitions/{competition_urn}/seasons.json")
+    if error:
+        return None, error
+    seasons = data.get("seasons", [])
+    if not seasons:
+        return None, "Nenhuma temporada encontrada para esta competicao"
+    # Retorna a mais recente (maior ano)
+    current_year = datetime.now().year
+    best = None
+    for s in seasons:
+        year = s.get("year", "")
+        if str(current_year) in str(year):
+            best = s
+            break
+    if not best:
+        best = seasons[0]  # fallback para a primeira
+    return best.get("id"), None
+
+
+def _get_team_form(competitor_urn):
+    """
+    Calcula string de forma (W/D/L) dos últimos 5 jogos de um time.
+    Retorna (form_str, error) ex: ("WWDLW", None)
+    Consome 1 chamada à API Sportradar.
+    """
+    data, error = call_sportradar(f"/competitors/{competitor_urn}/summaries.json")
+    if error:
+        return None, error
+
+    form = []
+    for summary in data.get("summaries", []):
+        if len(form) >= 5:
+            break
+        status_obj = summary.get("sport_event_status", {})
+        if status_obj.get("status") not in ("closed", "ended"):
+            continue
+
+        competitors = summary.get("sport_event", {}).get("competitors", [])
+        qualifier = None
+        for c in competitors:
+            if c.get("id") == competitor_urn:
+                qualifier = c.get("qualifier")
+                break
+
+        home_score = int(status_obj.get("home_score") or 0)
+        away_score = int(status_obj.get("away_score") or 0)
+
+        if qualifier == "home":
+            team_score, opp_score = home_score, away_score
+        elif qualifier == "away":
+            team_score, opp_score = away_score, home_score
+        else:
+            continue
+
+        if team_score > opp_score:
+            form.append("W")
+        elif team_score == opp_score:
+            form.append("D")
+        else:
+            form.append("L")
+
+    return "".join(form) if form else None, None
+
+
+def _parse_status_sportradar(status_str):
+    """Converte status Sportradar para abreviação conhecida."""
+    mapping = {
+        "not_started": "NS",
+        "live": "LIVE",
+        "1st_half": "1H",
+        "halftime": "HT",
+        "2nd_half": "2H",
+        "overtime": "ET",
+        "penalties": "PEN",
+        "ended": "FT",
+        "closed": "FT",
+        "abandoned": "ABD",
+        "delayed": "DELAY",
+        "postponed": "PST",
+        "cancelled": "CANC",
+        "interrupted": "INT",
+        "suspended": "SUSP",
+    }
+    return mapping.get(status_str, status_str.upper() if status_str else "?")
 
 
 # =======================
@@ -351,247 +399,422 @@ def calculate_must_win_factor(team_stats, standings_position=None, total_teams=N
 # =======================
 @app.route("/")
 def home():
-    """
-    Retorna informações sobre a API e endpoints disponíveis.
-    """
     return jsonify({
         "ok": True,
         "name": "Apostas Esportivas Pro API",
         "version": API_VERSION,
-        "description": "API profissional para integração com GPTs e análises esportivas avançadas.",
+        "provider": "Sportradar Soccer API v4",
+        "description": "API profissional integrada com Sportradar para analises esportivas avancadas.",
         "documentation": "/openapi.json",
         "endpoints": {
-            "base": ["/health", "/fixtures", "/standings", "/teams/statistics", "/players/topscorers", "/leagues"],
-            "avancados": ["/fixtures/headtohead", "/injuries", "/odds", "/predictions", "/fixtures/live"],
+            "base": ["/health", "/competitions", "/fixtures", "/standings", "/players/topscorers"],
+            "avancados": ["/fixtures/headtohead", "/predictions", "/fixtures/live"],
             "ao_vivo": ["/fixtures/live/analysis", "/fixtures/live/minute-by-minute"],
-            "profissionais": ["/analysis/corners", "/analysis/cards", "/analysis/value", "/news/context"]
+            "profissionais": ["/analysis/corners", "/analysis/cards", "/analysis/value",
+                              "/news/context", "/analysis/complete"],
+            "utilidades": ["/seasons"]
         },
-        "features": [
-            "50+ ligas suportadas",
-            "Dados em tempo real",
-            "Análises profissionais com fator Must Win",
-            "Análises de jogos ao vivo",
-            "Análises minuto a minuto",
-            "Value Betting",
-            "Previsões IA",
-            "Contexto de notícias",
-            "Retry automático com exponential backoff"
-        ],
-        "whats_new_v5": [
-            "Fator 'Must Win' integrado em todas as análises",
-            "Análise de jogos ao vivo com estatísticas em tempo real",
-            "Análise minuto a minuto com timeline de eventos",
-            "Sistema de retry melhorado para maior confiabilidade",
-            "Vercel runtime configurado corretamente"
-        ]
+        "nota_ids": (
+            "Esta API usa URNs do Sportradar. "
+            "Use /competitions para listar competicoes disponiveis. "
+            "Exemplo de competition_id: sr:competition:325 (Brasileirao Serie A). "
+            "Use /seasons?competition=sr:competition:325 para obter season_id."
+        ),
+        "rate_limit": "Trial: 1 req/seg, 1000 req/dia"
     })
 
 
 @app.route("/health")
 def health():
-    """
-    Health check da API com teste de conectividade.
-    """
     status = {
         "ok": True,
         "message": "API operacional",
         "version": API_VERSION,
+        "provider": "Sportradar Soccer API v4",
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
-    # Testa conectividade com API-Sports (opcional)
     if API_KEY:
         try:
-            test_data, test_error = call_api_football("/status", {})
-            if test_error:
-                status["api_sports_status"] = "error"
-                status["api_sports_error"] = test_error
+            # Testa conectividade chamando endpoint de competições
+            data, error = call_sportradar("/competitions.json")
+            if error:
+                status["sportradar_status"] = "error"
+                status["sportradar_error"] = error
+                if "invalida" in error or "401" in error:
+                    status["sportradar_status"] = "invalid_key"
             else:
-                status["api_sports_status"] = "connected"
+                competitions = data.get("competitions", [])
+                status["sportradar_status"] = "connected"
+                status["sportradar_competitions_count"] = len(competitions)
         except Exception as e:
-            status["api_sports_status"] = "unknown"
-            logger.warning(f"Health check API-Sports falhou: {e}")
+            status["sportradar_status"] = "unknown"
+            logger.warning(f"Health check Sportradar falhou: {e}")
     else:
-        status["api_sports_status"] = "not_configured"
-        status["warning"] = "API_KEY não configurada"
+        status["sportradar_status"] = "not_configured"
+        status["warning"] = "API_KEY nao configurada"
 
     return jsonify(status)
 
 
 @app.route("/openapi.json")
 def openapi_json():
-    """
-    Retorna o schema OpenAPI em formato JSON.
-    """
     try:
-        # Tenta carregar do arquivo primeiro
         base_dir = os.path.dirname(os.path.abspath(__file__))
         yaml_path = os.path.join(base_dir, "openapi.yaml")
-
         if not os.path.exists(yaml_path):
             yaml_path = "openapi.yaml"
-
         if os.path.exists(yaml_path):
             with open(yaml_path, "r", encoding="utf-8") as f:
                 openapi_yaml = yaml.safe_load(f)
             return jsonify(openapi_yaml)
         else:
-            # Fallback: retorna schema inline se arquivo não existir
-            logger.warning("openapi.yaml não encontrado, usando schema inline")
             return jsonify({
                 "openapi": "3.1.0",
                 "info": {
                     "title": "Apostas Esportivas Pro API",
                     "version": API_VERSION,
-                    "description": "API profissional para análises esportivas. Schema completo disponível em: https://github.com/nlsoarez/apostasesportivaspro/blob/main/openapi.yaml"
+                    "description": "API profissional integrada com Sportradar Soccer API v4."
                 },
-                "servers": [{"url": "https://apostasesportivas.vercel.app"}],
-                "paths": {
-                    "/health": {"get": {"summary": "Health check", "operationId": "checkHealth"}},
-                    "/fixtures": {"get": {"summary": "Lista jogos", "operationId": "getFixtures"}},
-                    "/standings": {"get": {"summary": "Classificação", "operationId": "getStandings"}},
-                    "/leagues": {"get": {"summary": "Ligas suportadas", "operationId": "getLeagues"}},
-                    "/analysis/value": {"get": {"summary": "Value Bet", "operationId": "getValueBet"}},
-                    "/analysis/corners": {"get": {"summary": "Análise escanteios", "operationId": "getAnalysisCorners"}},
-                    "/analysis/cards": {"get": {"summary": "Análise cartões", "operationId": "getAnalysisCards"}},
-                    "/news/context": {"get": {"summary": "Notícias", "operationId": "getNewsContext"}}
-                }
+                "paths": {}
             })
     except Exception as e:
-        logger.error(f"Erro ao carregar OpenAPI: {e}")
         return error_response(f"Erro ao carregar schema: {str(e)}", 500)
 
 
-@app.route("/leagues")
-def leagues():
+@app.route("/competitions")
+def competitions():
     """
-    Lista todas as ligas suportadas pela API.
+    Lista competições disponíveis.
+    Retorna as competições conhecidas + proxy para /competitions.json do Sportradar.
+
+    Query Parameters:
+        - live: Se 'true', busca as competições ao vivo no momento
     """
-    leagues_list = [
-        {"id": league_id, "name": league_name}
-        for league_id, league_name in sorted(SUPPORTED_LEAGUES.items(), key=lambda x: x[1])
+    # Lista estática conhecida
+    known = [
+        {"id": cid, "name": name}
+        for cid, name in sorted(SUPPORTED_COMPETITIONS.items(), key=lambda x: x[1])
     ]
 
     return jsonify({
         "ok": True,
-        "total": len(leagues_list),
-        "leagues": leagues_list,
+        "total": len(known),
+        "competitions": known,
         "categories": {
-            "brasil": [71, 72, 73, 75, 76],
-            "europa": [39, 140, 135, 78, 61, 94, 88],
-            "internacional": [2, 3, 848, 13, 11],
-            "americas": [253, 128],
-            "mundial": [1, 960]
-        }
+            "brasil": [
+                "sr:competition:325", "sr:competition:390",
+                "sr:competition:531", "sr:competition:621", "sr:competition:624"
+            ],
+            "europa": [
+                "sr:competition:17", "sr:competition:8", "sr:competition:23",
+                "sr:competition:35", "sr:competition:34", "sr:competition:238",
+                "sr:competition:37"
+            ],
+            "internacional_clubes": [
+                "sr:competition:7", "sr:competition:679", "sr:competition:929",
+                "sr:competition:384", "sr:competition:480"
+            ],
+            "americas": ["sr:competition:242", "sr:competition:316"],
+            "selecoes": ["sr:competition:1", "sr:competition:9", "sr:competition:133"]
+        },
+        "nota": "Use o 'id' como parametro 'competition' nos outros endpoints"
     })
 
 
-@app.route("/fixtures", methods=["GET"])
-def fixtures():
+# Manter /leagues como alias de /competitions para compatibilidade
+@app.route("/leagues")
+def leagues():
+    return competitions()
+
+
+@app.route("/seasons")
+def seasons():
     """
-    Lista jogos filtrados por data, liga ou rodada.
+    Lista temporadas disponíveis para uma competição.
 
     Query Parameters:
-        - league (required): ID da liga
-        - date: Data no formato YYYY-MM-DD
-        - round: Rodada (alternativa a date)
-        - season: Ano da temporada (default: 2025)
-        - status: Status do jogo (NS, LIVE, FT, etc.)
-        - timezone: Fuso horário (default: America/Sao_Paulo)
+        - competition (required): URN da competição (ex: sr:competition:325)
     """
-    league = request.args.get("league")
-    date = request.args.get("date")
-    round_param = request.args.get("round")
-    season = request.args.get("season", str(DEFAULT_SEASON))
-    status = request.args.get("status")
-    timezone = request.args.get("timezone", DEFAULT_TIMEZONE)
+    competition = request.args.get("competition")
+    if not competition:
+        return error_response("Parametro 'competition' e obrigatorio (ex: sr:competition:325)")
 
-    # Validações
-    if not league:
-        return error_response("Parâmetro 'league' é obrigatório")
-
-    if not date and not round_param:
-        return error_response("Parâmetro 'date' ou 'round' é obrigatório")
-
-    # Validar league é inteiro
-    league_id, error = validate_integer_param(league, "league")
-    if error:
-        return error_response(error)
-
-    params = {"league": league_id, "season": season, "timezone": timezone}
-    if date:
-        params["date"] = date
-    if round_param:
-        params["round"] = round_param
-    if status:
-        params["status"] = status
-
-    data, error = call_api_football("/fixtures", params)
+    data, error = call_sportradar(f"/competitions/{competition}/seasons.json")
     if error:
         return error_response(error, 500)
 
-    jogos = []
-    for fixture in data.get("response", []):
-        info = fixture.get("fixture", {})
-        teams = fixture.get("teams", {})
-        jogos.append({
-            "id": info.get("id"),
-            "data": info.get("date"),
-            "status": info.get("status", {}).get("short"),
-            "mandante": teams.get("home", {}).get("name"),
-            "visitante": teams.get("away", {}).get("name"),
+    seasons_list = []
+    for s in data.get("seasons", []):
+        seasons_list.append({
+            "id": s.get("id"),
+            "name": s.get("name"),
+            "year": s.get("year"),
+            "start_date": s.get("start_date"),
+            "end_date": s.get("end_date"),
+            "competition_id": s.get("competition_id")
         })
 
-    return jsonify({"ok": True, "total": len(jogos), "jogos": jogos})
+    return jsonify({
+        "ok": True,
+        "competition": competition,
+        "total": len(seasons_list),
+        "seasons": seasons_list,
+        "nota": "Use o 'id' da temporada como parametro 'season' nos outros endpoints"
+    })
+
+
+# =======================
+# Endpoints principais
+# =======================
+@app.route("/fixtures", methods=["GET"])
+def fixtures():
+    """
+    Lista jogos por data e/ou competição.
+
+    Query Parameters:
+        - date (required): Data no formato YYYY-MM-DD
+        - competition: URN da competição para filtrar (ex: sr:competition:325)
+
+    Retorna os jogos do dia com status e placar (se finalizado).
+    """
+    date = request.args.get("date")
+    competition_filter = request.args.get("competition")
+
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+
+    data, error = call_sportradar(f"/schedules/{date}/summaries.json")
+    if error:
+        return error_response(error, 500)
+
+    summaries = data.get("summaries", [])
+    jogos = []
+
+    for summary in summaries:
+        sport_event = summary.get("sport_event", {})
+        status_obj = summary.get("sport_event_status", {})
+
+        # Filtrar por competição se solicitado
+        ctx = sport_event.get("sport_event_context", {})
+        comp = ctx.get("competition", {})
+        comp_id = comp.get("id", "")
+        if competition_filter and comp_id != competition_filter:
+            continue
+
+        competitors = sport_event.get("competitors", [])
+        home_name = away_name = None
+        home_score = away_score = None
+
+        for c in competitors:
+            q = c.get("qualifier", "")
+            if q == "home":
+                home_name = c.get("name")
+            elif q == "away":
+                away_name = c.get("name")
+
+        status_str = status_obj.get("status", "")
+        home_score = status_obj.get("home_score")
+        away_score = status_obj.get("away_score")
+        match_time = status_obj.get("clock", {}).get("match_time") if status_str == "live" else None
+
+        jogos.append({
+            "id": sport_event.get("id"),
+            "data": sport_event.get("scheduled"),
+            "status": _parse_status_sportradar(status_str),
+            "minuto": match_time,
+            "competicao": comp.get("name"),
+            "competicao_id": comp_id,
+            "mandante": home_name,
+            "visitante": away_name,
+            "placar": f"{home_score}x{away_score}" if home_score is not None else None
+        })
+
+    return jsonify({
+        "ok": True,
+        "date": date,
+        "total": len(jogos),
+        "jogos": jogos
+    })
 
 
 @app.route("/standings")
 def standings():
     """
-    Retorna a classificação de uma liga.
+    Retorna a classificação de uma competição.
 
     Query Parameters:
-        - league (required): ID da liga
-        - season: Ano da temporada (default: 2025)
+        - competition (required): URN da competição (ex: sr:competition:325)
+        - season: URN da temporada (ex: sr:season:106479). Se omitido, usa a atual.
     """
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
+    competition = request.args.get("competition")
+    season_urn = request.args.get("season")
 
-    if not league:
-        return error_response("Parâmetro 'league' é obrigatório")
+    if not competition:
+        return error_response("Parametro 'competition' e obrigatorio (ex: sr:competition:325)")
 
-    league_id, error = validate_integer_param(league, "league")
-    if error:
-        return error_response(error)
+    # Auto-detectar temporada atual se não fornecida
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada atual: {error}", 500)
 
-    data, error = call_api_football("/standings", {"league": league_id, "season": season})
+    data, error = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/standings.json"
+    )
     if error:
         return error_response(error, 500)
 
-    return jsonify({"ok": True, "standings": data.get("response", [])})
+    standings_raw = data.get("standings", [])
+    result = []
+
+    for standing in standings_raw:
+        if standing.get("type") != "total":
+            continue
+        for group in standing.get("groups", []):
+            for entry in group.get("standings", []):
+                team = entry.get("team", {})
+                result.append({
+                    "posicao": entry.get("rank"),
+                    "time": team.get("name"),
+                    "time_id": team.get("id"),
+                    "jogos": entry.get("played", 0),
+                    "vitorias": entry.get("win", 0),
+                    "empates": entry.get("draw", 0),
+                    "derrotas": entry.get("loss", 0),
+                    "gols_pro": entry.get("goals_scored", 0),
+                    "gols_contra": entry.get("goals_conceded", 0),
+                    "saldo": entry.get("goals_scored", 0) - entry.get("goals_conceded", 0),
+                    "pontos": entry.get("points", 0)
+                })
+
+    result.sort(key=lambda x: x.get("posicao") or 999)
+    return jsonify({
+        "ok": True,
+        "competition": competition,
+        "season": season_urn,
+        "total": len(result),
+        "classificacao": result
+    })
 
 
 @app.route("/teams/statistics")
 def team_statistics():
-    team = request.args.get("team")
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
-    if not (team and league): return error_response("Parâmetros 'team' e 'league' obrigatórios")
+    """
+    Retorna perfil e estatísticas de um time (competitor).
 
-    data, error = call_api_football("/teams/statistics", {"team": team, "league": league, "season": season})
-    if error: return error_response(error, 500)
-    return jsonify({"ok": True, "stats": data.get("response", {})})
+    Query Parameters:
+        - team (required): URN do time (ex: sr:competitor:1234)
+        - competition: URN da competição para contexto
+        - season: URN da temporada
+    """
+    team = request.args.get("team")
+    competition = request.args.get("competition")
+    season_urn = request.args.get("season")
+
+    if not team:
+        return error_response("Parametro 'team' e obrigatorio (ex: sr:competitor:1234)")
+
+    # Buscar perfil do competitor
+    data, error = call_sportradar(f"/competitors/{team}/profile.json")
+    if error:
+        return error_response(error, 500)
+
+    competitor = data.get("competitor", {})
+    players = data.get("players", [])
+    categories = data.get("categories", [])
+
+    # Se tiver season, busca sumários da temporada
+    summaries_data = None
+    if season_urn and competition:
+        summaries_data, _ = call_sportradar(
+            f"/competitions/{competition}/seasons/{season_urn}/competitor_statistics.json",
+            params={"competitor": team}
+        )
+
+    return jsonify({
+        "ok": True,
+        "team": {
+            "id": competitor.get("id"),
+            "name": competitor.get("name"),
+            "short_name": competitor.get("short_name"),
+            "abbreviation": competitor.get("abbreviation"),
+            "country": competitor.get("country"),
+            "country_code": competitor.get("country_code"),
+            "gender": competitor.get("gender"),
+            "type": competitor.get("type")
+        },
+        "jogadores": [
+            {
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "date_of_birth": p.get("date_of_birth"),
+                "nationality": p.get("nationality"),
+                "height": p.get("height"),
+                "weight": p.get("weight"),
+                "jersey_number": p.get("jersey_number"),
+                "position": p.get("type")
+            }
+            for p in players[:30]  # Top 30 jogadores
+        ],
+        "estatisticas_temporada": summaries_data
+    })
 
 
 @app.route("/players/topscorers")
 def top_scorers():
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
-    if not league: return error_response("Parâmetro 'league' obrigatório")
+    """
+    Retorna artilheiros de uma competição/temporada.
 
-    data, error = call_api_football("/players/topscorers", {"league": league, "season": season})
-    if error: return error_response(error, 500)
-    return jsonify({"ok": True, "artilheiros": data.get("response", [])})
+    Query Parameters:
+        - competition (required): URN da competição (ex: sr:competition:325)
+        - season: URN da temporada. Se omitido, usa a atual.
+    """
+    competition = request.args.get("competition")
+    season_urn = request.args.get("season")
+
+    if not competition:
+        return error_response("Parametro 'competition' e obrigatorio (ex: sr:competition:325)")
+
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
+
+    data, error = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/top_scorers.json"
+    )
+    if error:
+        return error_response(error, 500)
+
+    top_scorers_raw = data.get("top_scorers", {})
+    artilheiros = []
+
+    for entry in top_scorers_raw.get("competitors", []):
+        comp = entry.get("competitor", {})
+        for player_entry in entry.get("players", []):
+            player = player_entry.get("player", {})
+            stats = player_entry.get("statistics", {})
+            artilheiros.append({
+                "jogador": player.get("name"),
+                "jogador_id": player.get("id"),
+                "time": comp.get("name"),
+                "time_id": comp.get("id"),
+                "gols": stats.get("goals_scored", 0),
+                "assistencias": stats.get("assists", 0),
+                "jogos": stats.get("appearances", 0),
+                "amarelos": stats.get("yellow_cards", 0),
+                "vermelhos": stats.get("red_cards", 0)
+            })
+
+    artilheiros.sort(key=lambda x: x.get("gols", 0), reverse=True)
+    return jsonify({
+        "ok": True,
+        "competition": competition,
+        "season": season_urn,
+        "total": len(artilheiros),
+        "artilheiros": artilheiros
+    })
 
 
 # =======================
@@ -603,100 +826,176 @@ def head_to_head():
     Retorna histórico de confrontos diretos (H2H) entre dois times.
 
     Query Parameters:
-        - h2h (required): IDs dos times no formato "idTimeA-idTimeB"
-                         Exemplo: h2h=127-121 (Flamengo vs Palmeiras)
+        - team1 (required): URN do time 1 (ex: sr:competitor:1234)
+        - team2 (required): URN do time 2 (ex: sr:competitor:5678)
     """
-    h2h = request.args.get("h2h")
+    team1 = request.args.get("team1")
+    team2 = request.args.get("team2")
 
-    if not h2h:
-        return error_response("Parâmetro 'h2h' é obrigatório. Exemplo: h2h=127-121")
+    if not team1 or not team2:
+        return error_response(
+            "Parametros 'team1' e 'team2' sao obrigatorios. "
+            "Exemplo: team1=sr:competitor:1234&team2=sr:competitor:5678"
+        )
 
-    # Validar formato h2h
-    if "-" not in h2h:
-        return error_response("Formato inválido. Use: h2h=idTime1-idTime2 (ex: 127-121)")
-
-    data, error = call_api_football("/fixtures/headtohead", {"h2h": h2h})
+    data, error = call_sportradar(
+        f"/competitors/{team1}/versus/{team2}/summaries.json"
+    )
     if error:
         return error_response(error, 500)
 
+    last_meetings = data.get("last_meetings", {})
+    results_raw = last_meetings.get("results", [])
+
     resultados = []
-    for match in data.get("response", [])[:MAX_H2H_RESULTS]:
-        placar = match.get("goals", {})
+    for match in results_raw[:MAX_H2H_RESULTS]:
+        sport_event = match.get("sport_event", {})
+        status_obj = match.get("sport_event_status", {})
+        competitors = sport_event.get("competitors", [])
+
+        home_name = away_name = None
+        for c in competitors:
+            if c.get("qualifier") == "home":
+                home_name = c.get("name")
+            elif c.get("qualifier") == "away":
+                away_name = c.get("name")
+
+        home_score = status_obj.get("home_score", 0)
+        away_score = status_obj.get("away_score", 0)
+
         resultados.append({
-            "mandante": match["teams"]["home"]["name"],
-            "visitante": match["teams"]["away"]["name"],
-            "placar": f"{placar.get('home', 0)}x{placar.get('away', 0)}"
+            "id": sport_event.get("id"),
+            "data": sport_event.get("scheduled"),
+            "mandante": home_name,
+            "visitante": away_name,
+            "placar": f"{home_score}x{away_score}",
+            "status": _parse_status_sportradar(status_obj.get("status", ""))
         })
 
-    return jsonify({"ok": True, "total": len(resultados), "resultados": resultados})
-
-
-@app.route("/injuries")
-def injuries():
-    league = request.args.get("league")
-    team = request.args.get("team")
-    season = request.args.get("season", str(DEFAULT_SEASON))
-    if not (league and team): return error_response("Parâmetros 'league' e 'team' obrigatórios")
-
-    data, error = call_api_football("/injuries", {"league": league, "team": team, "season": season})
-    if error: return error_response(error, 500)
-
-    lesoes = []
-    for injury in data.get("response", []):
-        player = injury.get("player", {})
-        detail = injury.get("injury", {})
-        lesoes.append({
-            "jogador": player.get("name"),
-            "tipo": detail.get("type"),
-            "motivo": detail.get("reason")
+    next_meetings = data.get("next_meetings", {})
+    proximos = []
+    for match in next_meetings.get("results", [])[:5]:
+        sport_event = match.get("sport_event", {})
+        competitors = sport_event.get("competitors", [])
+        home_name = away_name = None
+        for c in competitors:
+            if c.get("qualifier") == "home":
+                home_name = c.get("name")
+            elif c.get("qualifier") == "away":
+                away_name = c.get("name")
+        proximos.append({
+            "id": sport_event.get("id"),
+            "data": sport_event.get("scheduled"),
+            "mandante": home_name,
+            "visitante": away_name
         })
-    return jsonify({"ok": True, "total": len(lesoes), "lesoes": lesoes})
 
-
-@app.route("/odds")
-def odds():
-    fixture = request.args.get("fixture")
-    if not fixture: return error_response("Parâmetro 'fixture' obrigatório")
-
-    data, error = call_api_football("/odds", {"fixture": fixture})
-    if error: return error_response(error, 500)
-    return jsonify({"ok": True, "odds": data.get("response", [])})
+    return jsonify({
+        "ok": True,
+        "team1": team1,
+        "team2": team2,
+        "total_historico": len(resultados),
+        "resultados": resultados,
+        "proximos": proximos
+    })
 
 
 @app.route("/predictions")
 def predictions():
-    fixture = request.args.get("fixture")
-    if not fixture: return error_response("Parâmetro 'fixture' obrigatório")
+    """
+    Retorna probabilidades de resultado de um jogo (sport event).
 
-    data, error = call_api_football("/predictions", {"fixture": fixture})
-    if error: return error_response(error, 500)
-    return jsonify({"ok": True, "predicoes": data.get("response", [])})
+    Query Parameters:
+        - fixture (required): URN do jogo (ex: sr:sport_event:12345)
+    """
+    fixture = request.args.get("fixture")
+    if not fixture:
+        return error_response("Parametro 'fixture' e obrigatorio (ex: sr:sport_event:12345)")
+
+    data, error = call_sportradar(f"/sport_events/{fixture}/probabilities.json")
+    if error:
+        return error_response(error, 500)
+
+    sport_event = data.get("sport_event", {})
+    probabilities = data.get("probabilities", [])
+
+    result = []
+    for market in probabilities:
+        market_name = market.get("market")
+        outcomes = []
+        for outcome in market.get("outcomes", []):
+            outcomes.append({
+                "resultado": outcome.get("outcome"),
+                "probabilidade": round(outcome.get("probability", 0) * 100, 1),
+                "probabilidade_decimal": outcome.get("probability")
+            })
+        result.append({
+            "mercado": market_name,
+            "resultados": outcomes
+        })
+
+    competitors = sport_event.get("competitors", [])
+    home_name = away_name = None
+    for c in competitors:
+        if c.get("qualifier") == "home":
+            home_name = c.get("name")
+        elif c.get("qualifier") == "away":
+            away_name = c.get("name")
+
+    return jsonify({
+        "ok": True,
+        "jogo": {
+            "id": sport_event.get("id"),
+            "data": sport_event.get("scheduled"),
+            "mandante": home_name,
+            "visitante": away_name
+        },
+        "predicoes": result
+    })
 
 
 @app.route("/fixtures/live")
 def live_fixtures():
     """
-    Lista jogos ao vivo no momento (top 20).
-
-    Retorna os principais jogos que estão acontecendo agora,
-    com status, minuto e times envolvidos.
+    Lista jogos ao vivo no momento.
+    Retorna os jogos que estão acontecendo agora com placar e minuto.
     """
-    data, error = call_api_football("/fixtures", {"live": "all"})
+    data, error = call_sportradar("/schedules/live/summaries.json")
     if error:
         return error_response(error, 500)
 
+    summaries = data.get("summaries", [])
     partidas = []
-    for fixture in data.get("response", [])[:MAX_LIVE_FIXTURES]:
-        info = fixture.get("fixture", {})
-        teams = fixture.get("teams", {})
-        goals = fixture.get("goals", {})
+
+    for summary in summaries[:MAX_LIVE_FIXTURES]:
+        sport_event = summary.get("sport_event", {})
+        status_obj = summary.get("sport_event_status", {})
+
+        competitors = sport_event.get("competitors", [])
+        home_name = away_name = None
+        for c in competitors:
+            if c.get("qualifier") == "home":
+                home_name = c.get("name")
+            elif c.get("qualifier") == "away":
+                away_name = c.get("name")
+
+        ctx = sport_event.get("sport_event_context", {})
+        comp = ctx.get("competition", {})
+        clock = status_obj.get("clock", {})
+
+        home_score = status_obj.get("home_score", 0)
+        away_score = status_obj.get("away_score", 0)
+
         partidas.append({
-            "id": info.get("id"),
-            "status": info.get("status", {}).get("short"),
-            "minuto": info.get("status", {}).get("elapsed"),
-            "mandante": teams.get("home", {}).get("name"),
-            "visitante": teams.get("away", {}).get("name"),
-            "placar": f"{goals.get('home', 0)}x{goals.get('away', 0)}"
+            "id": sport_event.get("id"),
+            "status": _parse_status_sportradar(status_obj.get("status", "")),
+            "match_status": status_obj.get("match_status"),
+            "minuto": clock.get("match_time"),
+            "competicao": comp.get("name"),
+            "competicao_id": comp.get("id"),
+            "mandante": home_name,
+            "visitante": away_name,
+            "placar": f"{home_score}x{away_score}"
         })
 
     return jsonify({
@@ -710,117 +1009,51 @@ def live_fixtures():
 @app.route("/fixtures/live/analysis")
 def live_analysis():
     """
-    Análise profissional de um jogo ao vivo com Must Win e estatísticas em tempo real.
+    Análise profissional de um jogo ao vivo com fator Must Win.
 
     Query Parameters:
-        - fixture (required): ID do jogo ao vivo
-        - league (required): ID da liga
-        - season: Ano da temporada (default: 2025)
+        - fixture (required): URN do jogo (ex: sr:sport_event:12345)
 
     Retorna análise completa incluindo:
-    - Estatísticas do jogo (posse, chutes, escanteios, cartões)
-    - Fator Must Win de ambos os times
-    - Análise de momento do jogo
+    - Placar e minuto atuais
+    - Fator Must Win (baseado em tabela se disponível)
+    - Estatísticas da partida (via timeline)
     - Sugestões de apostas ao vivo
     """
     fixture_id = request.args.get("fixture")
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
-
     if not fixture_id:
-        return error_response("Parâmetro 'fixture' é obrigatório")
+        return error_response("Parametro 'fixture' e obrigatorio (ex: sr:sport_event:12345)")
 
-    if not league:
-        return error_response("Parâmetro 'league' é obrigatório")
-
-    # Validar IDs
-    fixture_id_int, error = validate_integer_param(fixture_id, "fixture")
-    if error:
-        return error_response(error)
-
-    league_id, error = validate_integer_param(league, "league")
-    if error:
-        return error_response(error)
-
-    # Buscar dados do jogo ao vivo
-    fixture_data, error = call_api_football("/fixtures", {"id": fixture_id_int})
+    # Buscar sumário do jogo ao vivo
+    data, error = call_sportradar(f"/sport_events/{fixture_id}/summary.json")
     if error:
         return error_response(error, 500)
 
-    if not fixture_data.get("response"):
-        return error_response("Jogo não encontrado", 404)
+    sport_event = data.get("sport_event", {})
+    status_obj = data.get("sport_event_status", {})
+    statistics = data.get("statistics", {})
 
-    match = fixture_data["response"][0]
-    fixture_info = match.get("fixture", {})
-    teams = match.get("teams", {})
-    goals = match.get("goals", {})
-    score = match.get("score", {})
-    events = match.get("events", [])
-    statistics = match.get("statistics", [])
+    competitors = sport_event.get("competitors", [])
+    home_name = home_id = None
+    away_name = away_id = None
+    for c in competitors:
+        if c.get("qualifier") == "home":
+            home_name = c.get("name")
+            home_id = c.get("id")
+        elif c.get("qualifier") == "away":
+            away_name = c.get("name")
+            away_id = c.get("id")
 
-    # Extrair IDs dos times
-    home_id = teams.get("home", {}).get("id")
-    away_id = teams.get("away", {}).get("id")
-
-    # Buscar estatísticas dos times e classificação
-    stats_home, _ = call_api_football("/teams/statistics", {"team": home_id, "league": league_id, "season": season})
-    stats_away, _ = call_api_football("/teams/statistics", {"team": away_id, "league": league_id, "season": season})
-    standings_data, _ = call_api_football("/standings", {"league": league_id, "season": season})
-
-    # Calcular posições na tabela
-    home_position = None
-    away_position = None
-    total_teams = None
-
-    try:
-        if standings_data and standings_data.get("response"):
-            standings = standings_data["response"][0]["league"]["standings"][0]
-            total_teams = len(standings)
-            for team in standings:
-                if team["team"]["id"] == home_id:
-                    home_position = team["rank"]
-                if team["team"]["id"] == away_id:
-                    away_position = team["rank"]
-    except:
-        pass
-
-    # Calcular Must Win
-    must_win_home = calculate_must_win_factor(
-        stats_home.get("response") if stats_home else None,
-        home_position,
-        total_teams
-    )
-    must_win_away = calculate_must_win_factor(
-        stats_away.get("response") if stats_away else None,
-        away_position,
-        total_teams
-    )
-
-    # Processar estatísticas do jogo ao vivo
-    live_stats = {
-        "mandante": {},
-        "visitante": {}
-    }
-
-    if statistics:
-        for team_stats in statistics:
-            team_name = team_stats.get("team", {}).get("name")
-            stats_dict = {}
-            for stat in team_stats.get("statistics", []):
-                stat_type = stat.get("type")
-                stat_value = stat.get("value")
-                stats_dict[stat_type] = stat_value
-
-            if team_name == teams.get("home", {}).get("name"):
-                live_stats["mandante"] = stats_dict
-            else:
-                live_stats["visitante"] = stats_dict
+    clock = status_obj.get("clock", {})
+    elapsed = int(clock.get("match_time", 0) or 0)
+    match_status = status_obj.get("match_status", "")
+    home_score = status_obj.get("home_score", 0)
+    away_score = status_obj.get("away_score", 0)
 
     # Análise de momento do jogo
-    elapsed = fixture_info.get("status", {}).get("elapsed", 0)
-    momento = "Início de jogo"
+    momento = "Inicio de jogo"
     if elapsed > 75:
-        momento = "Final de jogo - Pressão máxima"
+        momento = "Final de jogo - Pressao maxima"
     elif elapsed > 60:
         momento = "Reta final - Momento decisivo"
     elif elapsed > 45:
@@ -828,16 +1061,33 @@ def live_analysis():
     elif elapsed > 30:
         momento = "Final do primeiro tempo"
 
+    # Must Win com forma recente
+    form_home, _ = _get_team_form(home_id) if home_id else (None, None)
+    form_away, _ = _get_team_form(away_id) if away_id else (None, None)
+    must_win_home = calculate_must_win_factor(form_home)
+    must_win_away = calculate_must_win_factor(form_away)
+
+    # Estatísticas ao vivo por time
+    live_stats = {"mandante": {}, "visitante": {}}
+    totals = statistics.get("totals", {})
+    if totals:
+        competitors_stats = totals.get("competitors", [])
+        for cs in competitors_stats:
+            cs_id = cs.get("id")
+            stats_dict = cs.get("statistics", {})
+            if cs_id == home_id:
+                live_stats["mandante"] = stats_dict
+            elif cs_id == away_id:
+                live_stats["visitante"] = stats_dict
+
     # Sugestões baseadas no contexto ao vivo
     sugestoes = []
-
-    # Análise de gols
-    total_goals = (goals.get("home", 0) or 0) + (goals.get("away", 0) or 0)
+    total_goals = (home_score or 0) + (away_score or 0)
     if elapsed > 60 and total_goals == 0:
         sugestoes.append({
             "tipo": "Gols",
-            "mercado": "Ambas marcam - NÃO",
-            "justificativa": f"Jogo sem gols aos {elapsed}' - defesas sólidas",
+            "mercado": "Ambas marcam - NAO",
+            "justificativa": f"Jogo sem gols aos {elapsed}' - defesas solidas",
             "confianca": 4
         })
     elif total_goals >= 2 and elapsed < 60:
@@ -848,66 +1098,42 @@ def live_analysis():
             "confianca": 4
         })
 
-    # Análise de escanteios (se disponível)
+    # Escanteios
     try:
-        corners_home = live_stats["mandante"].get("Corner Kicks", 0)
-        corners_away = live_stats["visitante"].get("Corner Kicks", 0)
-        if corners_home is not None and corners_away is not None:
-            total_corners = int(corners_home) + int(corners_away)
-            if elapsed > 0:
-                corners_por_minuto = total_corners / elapsed
-                corners_projetados = round(corners_por_minuto * 90, 1)
-                sugestoes.append({
-                    "tipo": "Escanteios",
-                    "mercado": f"Projeção: {corners_projetados} escanteios no jogo",
-                    "justificativa": f"{total_corners} escanteios em {elapsed}' (ritmo de {round(corners_por_minuto, 2)}/min)",
-                    "confianca": 4 if elapsed > 30 else 3
-                })
-    except:
-        pass
-
-    # Análise de cartões
-    try:
-        cards_home = (live_stats["mandante"].get("Yellow Cards", 0) or 0) + \
-                     (live_stats["mandante"].get("Red Cards", 0) or 0) * 2
-        cards_away = (live_stats["visitante"].get("Yellow Cards", 0) or 0) + \
-                     (live_stats["visitante"].get("Red Cards", 0) or 0) * 2
-        total_cards = cards_home + cards_away
-
-        if total_cards >= 4 and elapsed < 60:
+        h_corners = live_stats["mandante"].get("corner_kicks", 0) or 0
+        a_corners = live_stats["visitante"].get("corner_kicks", 0) or 0
+        total_corners = int(h_corners) + int(a_corners)
+        if elapsed > 0:
+            proj = round(total_corners / elapsed * 90, 1)
             sugestoes.append({
-                "tipo": "Cartões",
-                "mercado": "Over cartões",
-                "justificativa": f"{total_cards} cartões em {elapsed}' - jogo disputado",
-                "confianca": 4
+                "tipo": "Escanteios",
+                "mercado": f"Projecao: {proj} escanteios no jogo",
+                "justificativa": f"{total_corners} escanteios em {elapsed}' ({round(total_corners/elapsed, 2)}/min)",
+                "confianca": 4 if elapsed > 30 else 3
             })
-    except:
+    except Exception:
         pass
 
     return jsonify({
         "ok": True,
         "jogo": {
-            "id": fixture_id_int,
-            "status": fixture_info.get("status", {}).get("long"),
+            "id": fixture_id,
+            "status": _parse_status_sportradar(status_obj.get("status", "")),
+            "match_status": match_status,
             "minuto": elapsed,
             "momento_jogo": momento,
-            "mandante": teams.get("home", {}).get("name"),
-            "visitante": teams.get("away", {}).get("name"),
+            "mandante": home_name,
+            "visitante": away_name,
             "placar": {
-                "atual": f"{goals.get('home', 0)}x{goals.get('away', 0)}",
-                "halftime": f"{score.get('halftime', {}).get('home', 0)}x{score.get('halftime', {}).get('away', 0)}"
+                "atual": f"{home_score}x{away_score}",
+                "halftime": None
             }
         },
         "estatisticas_ao_vivo": live_stats,
         "must_win": {
             "mandante": must_win_home,
             "visitante": must_win_away,
-            "analise": (
-                "Jogo decisivo para ambos os times" if must_win_home["score"] >= 7 and must_win_away["score"] >= 7 else
-                f"Mais importante para {teams.get('home', {}).get('name')}" if must_win_home["score"] > must_win_away["score"] + 2 else
-                f"Mais importante para {teams.get('away', {}).get('name')}" if must_win_away["score"] > must_win_home["score"] + 2 else
-                "Importância equilibrada para ambos"
-            )
+            "analise": "Importancia equilibrada para ambos (dados de tabela nao disponíveis ao vivo)"
         },
         "sugestoes_ao_vivo": sugestoes,
         "timestamp": datetime.utcnow().isoformat() + "Z"
@@ -917,39 +1143,35 @@ def live_analysis():
 @app.route("/fixtures/live/minute-by-minute")
 def minute_by_minute_analysis():
     """
-    Análise minuto a minuto de um jogo ao vivo ou finalizado.
+    Análise minuto a minuto de um jogo via timeline de eventos.
 
     Query Parameters:
-        - fixture (required): ID do jogo
+        - fixture (required): URN do jogo (ex: sr:sport_event:12345)
 
     Retorna:
     - Timeline completa de eventos (gols, cartões, substituições)
-    - Análise de cada período do jogo (0-15, 16-30, 31-45, etc)
+    - Análise de cada período (0-15, 16-30, 31-45, etc.)
     - Momentos-chave identificados
-    - Padrões de jogo por período
     """
     fixture_id = request.args.get("fixture")
-
     if not fixture_id:
-        return error_response("Parâmetro 'fixture' é obrigatório")
+        return error_response("Parametro 'fixture' e obrigatorio (ex: sr:sport_event:12345)")
 
-    # Validar ID
-    fixture_id_int, error = validate_integer_param(fixture_id, "fixture")
-    if error:
-        return error_response(error)
-
-    # Buscar dados do jogo
-    fixture_data, error = call_api_football("/fixtures", {"id": fixture_id_int})
+    data, error = call_sportradar(f"/sport_events/{fixture_id}/timeline.json")
     if error:
         return error_response(error, 500)
 
-    if not fixture_data.get("response"):
-        return error_response("Jogo não encontrado", 404)
+    sport_event = data.get("sport_event", {})
+    status_obj = data.get("sport_event_status", {})
+    timeline_raw = data.get("timeline", [])
 
-    match = fixture_data["response"][0]
-    fixture_info = match.get("fixture", {})
-    teams = match.get("teams", {})
-    events = match.get("events", []) or []
+    competitors = sport_event.get("competitors", [])
+    home_name = away_name = None
+    for c in competitors:
+        if c.get("qualifier") == "home":
+            home_name = c.get("name")
+        elif c.get("qualifier") == "away":
+            away_name = c.get("name")
 
     # Processar eventos
     timeline = []
@@ -957,35 +1179,39 @@ def minute_by_minute_analysis():
     cards_timeline = []
     substitutions = []
 
-    for event in events:
-        minute = event.get("time", {}).get("elapsed", 0)
-        extra = event.get("time", {}).get("extra")
-        event_type = event.get("type")
-        detail = event.get("detail")
-        team = event.get("team", {}).get("name")
-        player = event.get("player", {}).get("name", "Desconhecido")
+    for event in timeline_raw:
+        minute = event.get("match_time", 0) or 0
+        event_type = event.get("type", "")
+        competitor = event.get("competitor", "")
+        player = event.get("player", {})
+        player_name = player.get("name", "Desconhecido") if player else "Desconhecido"
 
-        minute_display = f"{minute}'" if not extra else f"{minute}'+{extra}'"
+        # Mapear team name
+        team_name = home_name if competitor == "home" else (away_name if competitor == "away" else competitor)
 
         event_obj = {
             "minuto": minute,
-            "minuto_display": minute_display,
+            "minuto_display": f"{minute}'",
             "tipo": event_type,
-            "detalhe": detail,
-            "time": team,
-            "jogador": player
+            "time": team_name,
+            "jogador": player_name,
+            "descricao": event.get("description", "")
         }
+
+        if event_type in ("score_change",):
+            event_obj["placar"] = {
+                "mandante": event.get("home_score"),
+                "visitante": event.get("away_score")
+            }
+            goals_timeline.append(event_obj)
+        elif event_type in ("yellow_card", "red_card", "yellow_red_card"):
+            cards_timeline.append(event_obj)
+        elif event_type in ("substitution",):
+            substitutions.append(event_obj)
 
         timeline.append(event_obj)
 
-        if event_type == "Goal":
-            goals_timeline.append(event_obj)
-        elif event_type == "Card":
-            cards_timeline.append(event_obj)
-        elif event_type == "subst":
-            substitutions.append(event_obj)
-
-    # Análise por períodos (0-15, 16-30, 31-45, 46-60, 61-75, 76-90+)
+    # Análise por períodos
     periods = {
         "0-15": {"gols": 0, "cartoes": 0, "eventos": []},
         "16-30": {"gols": 0, "cartoes": 0, "eventos": []},
@@ -995,106 +1221,55 @@ def minute_by_minute_analysis():
         "76-90+": {"gols": 0, "cartoes": 0, "eventos": []}
     }
 
-    def get_period(minute):
-        if minute <= 15:
-            return "0-15"
-        elif minute <= 30:
-            return "16-30"
-        elif minute <= 45:
-            return "31-45"
-        elif minute <= 60:
-            return "46-60"
-        elif minute <= 75:
-            return "61-75"
-        else:
-            return "76-90+"
+    def get_period(m):
+        if m <= 15: return "0-15"
+        if m <= 30: return "16-30"
+        if m <= 45: return "31-45"
+        if m <= 60: return "46-60"
+        if m <= 75: return "61-75"
+        return "76-90+"
 
     for event in timeline:
-        minute = event.get("minuto", 0)
-        period = get_period(minute)
+        m = event.get("minuto", 0)
+        p = get_period(m)
+        if event["tipo"] == "score_change":
+            periods[p]["gols"] += 1
+        elif event["tipo"] in ("yellow_card", "red_card", "yellow_red_card"):
+            periods[p]["cartoes"] += 1
+        periods[p]["eventos"].append(event)
 
-        if event["tipo"] == "Goal":
-            periods[period]["gols"] += 1
-        elif event["tipo"] == "Card":
-            periods[period]["cartoes"] += 1
-
-        periods[period]["eventos"].append(event)
-
-    # Identificar momentos-chave
+    # Momentos-chave
     momentos_chave = []
-
-    # Gols nos primeiros 15 minutos
     if periods["0-15"]["gols"] > 0:
         momentos_chave.append({
             "periodo": "0-15",
-            "descricao": f"Início elétrico com {periods['0-15']['gols']} gol(s)",
+            "descricao": f"Inicio eletrico com {periods['0-15']['gols']} gol(s)",
             "impacto": "ALTO"
         })
 
-    # Período mais movimentado
-    periodo_mais_movimentado = max(periods.items(),
-                                   key=lambda x: len(x[1]["eventos"]))
+    periodo_mais_movimentado = max(periods.items(), key=lambda x: len(x[1]["eventos"]))
     if len(periodo_mais_movimentado[1]["eventos"]) >= 5:
         momentos_chave.append({
             "periodo": periodo_mais_movimentado[0],
-            "descricao": f"Período mais agitado com {len(periodo_mais_movimentado[1]['eventos'])} eventos",
+            "descricao": f"Periodo mais agitado com {len(periodo_mais_movimentado[1]['eventos'])} eventos",
             "impacto": "MODERADO"
-        })
-
-    # Cartões em excesso
-    total_cards_period = max([p["cartoes"] for p in periods.values()])
-    if total_cards_period >= 3:
-        periodo_violento = [k for k, v in periods.items() if v["cartoes"] == total_cards_period][0]
-        momentos_chave.append({
-            "periodo": periodo_violento,
-            "descricao": f"Período de jogo mais duro com {total_cards_period} cartões",
-            "impacto": "ALTO"
-        })
-
-    # Análise de padrões
-    padroes = []
-
-    # Padrão de gols
-    total_goals = len(goals_timeline)
-    if total_goals > 0:
-        goals_1st_half = sum(1 for g in goals_timeline if g["minuto"] <= 45)
-        goals_2nd_half = total_goals - goals_1st_half
-
-        if goals_2nd_half > goals_1st_half * 1.5:
-            padroes.append({
-                "tipo": "Gols",
-                "padrao": "Jogo abriu no segundo tempo",
-                "dados": f"{goals_1st_half} no 1ºT vs {goals_2nd_half} no 2ºT"
-            })
-        elif goals_1st_half > goals_2nd_half * 1.5:
-            padroes.append({
-                "tipo": "Gols",
-                "padrao": "Jogo decidido no primeiro tempo",
-                "dados": f"{goals_1st_half} no 1ºT vs {goals_2nd_half} no 2ºT"
-            })
-
-    # Padrão de cartões
-    total_cards = len(cards_timeline)
-    if total_cards >= 4:
-        yellow_cards = sum(1 for c in cards_timeline if c["detalhe"] == "Yellow Card")
-        padroes.append({
-            "tipo": "Cartões",
-            "padrao": "Jogo disputado com muitas faltas",
-            "dados": f"{total_cards} cartões ({yellow_cards} amarelos)"
         })
 
     return jsonify({
         "ok": True,
         "jogo": {
-            "id": fixture_id_int,
-            "mandante": teams.get("home", {}).get("name"),
-            "visitante": teams.get("away", {}).get("name"),
-            "status": fixture_info.get("status", {}).get("long")
+            "id": fixture_id,
+            "mandante": home_name,
+            "visitante": away_name,
+            "status": _parse_status_sportradar(status_obj.get("status", "")),
+            "placar": {
+                "mandante": status_obj.get("home_score"),
+                "visitante": status_obj.get("away_score")
+            }
         },
         "timeline_completa": sorted(timeline, key=lambda x: x["minuto"]),
         "analise_por_periodos": periods,
         "momentos_chave": momentos_chave,
-        "padroes_identificados": padroes,
         "resumo": {
             "total_eventos": len(timeline),
             "total_gols": len(goals_timeline),
@@ -1105,219 +1280,258 @@ def minute_by_minute_analysis():
     })
 
 
+@app.route("/injuries")
+def injuries():
+    """
+    Jogadores ausentes (lesionados/suspensos) de uma competição/temporada.
+
+    Query Parameters:
+        - competition (required): URN da competição (ex: sr:competition:325)
+        - team (optional): URN do time para filtrar (ex: sr:competitor:1234)
+        - season (optional): URN da temporada (auto-detecta se omitido)
+    """
+    competition = request.args.get("competition")
+    team_filter = request.args.get("team")
+    season_urn = request.args.get("season")
+
+    if not competition:
+        return error_response(
+            "Parametro 'competition' e obrigatorio (ex: sr:competition:325). "
+            "Use /competitions para listar os IDs disponíveis."
+        )
+
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
+
+    data, error = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/missing_players.json"
+    )
+    if error:
+        return error_response(error, 500)
+
+    missing = data.get("missing_players", {})
+    competitors_raw = missing.get("competitors", [])
+
+    lesoes = []
+    for comp_entry in competitors_raw:
+        comp = comp_entry.get("competitor", {})
+        comp_id = comp.get("id")
+        comp_name = comp.get("name")
+
+        # Filtrar por time se solicitado
+        if team_filter and comp_id != team_filter:
+            continue
+
+        for player_entry in comp_entry.get("players", []):
+            player = player_entry.get("player", {})
+            lesoes.append({
+                "time": comp_name,
+                "time_id": comp_id,
+                "jogador": player.get("name"),
+                "jogador_id": player.get("id"),
+                "tipo": player_entry.get("type"),
+                "lesionado": player_entry.get("injured", False),
+                "desde": player_entry.get("started_at"),
+                "retorno_previsto": player_entry.get("return_date")
+            })
+
+    return jsonify({
+        "ok": True,
+        "competition": competition,
+        "season": season_urn,
+        "team_filter": team_filter,
+        "total": len(lesoes),
+        "lesoes": lesoes
+    })
+
+
+@app.route("/odds")
+def odds():
+    """
+    Odds de um jogo.
+    Nota: Odds não estão incluídas no pacote Soccer Base do Sportradar.
+    Use /predictions para probabilidades calculadas pela Sportradar.
+
+    Query Parameters:
+        - fixture (required): URN do jogo (ex: sr:sport_event:12345)
+    """
+    fixture = request.args.get("fixture")
+    if not fixture:
+        return error_response("Parametro 'fixture' e obrigatorio (ex: sr:sport_event:12345)")
+
+    return jsonify({
+        "ok": False,
+        "error": (
+            "Odds de casas de apostas nao estao incluidas no plano Sportradar Soccer Base. "
+            "Use /predictions para obter probabilidades calculadas pela Sportradar."
+        ),
+        "alternativa": f"/predictions?fixture={fixture}"
+    }), 503
+
+
 # =======================
 # Endpoints profissionais
 # =======================
 @app.route("/analysis/corners")
 def analysis_corners():
     """
-    Análise profissional de escanteios baseada em estatísticas com fator Must Win.
+    Análise de escanteios com fator Must Win.
 
     Query Parameters:
-        - team_home (required): ID do time mandante
-        - team_away (required): ID do time visitante
-        - league (required): ID da liga
-        - season: Ano da temporada (default: 2025)
+        - competition (required): URN da competição
+        - season (required): URN da temporada
+        - team_home (required): URN do time mandante
+        - team_away (required): URN do time visitante
 
-    Calcula estimativa baseada em média de escanteios a favor + fator Must Win.
+    Baseia-se em informações da tabela (standings) para calcular Must Win.
     """
+    competition = request.args.get("competition")
+    season_urn = request.args.get("season")
     team_home = request.args.get("team_home")
     team_away = request.args.get("team_away")
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
 
-    if not (team_home and team_away and league):
-        return error_response("Parâmetros obrigatórios: team_home, team_away, league")
+    if not (competition and team_home and team_away):
+        return error_response("Parametros obrigatorios: competition, team_home, team_away")
 
-    # Validar IDs
-    home_id, error = validate_integer_param(team_home, "team_home")
-    if error:
-        return error_response(error)
+    # Auto-detectar temporada
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
 
-    away_id, error = validate_integer_param(team_away, "team_away")
-    if error:
-        return error_response(error)
+    # Buscar standings para calcular posições
+    standings_data, _ = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/standings.json"
+    )
 
-    league_id, error = validate_integer_param(league, "league")
-    if error:
-        return error_response(error)
-
-    # Buscar dados
-    stats_home, _ = call_api_football("/teams/statistics", {"team": home_id, "league": league_id, "season": season})
-    stats_away, _ = call_api_football("/teams/statistics", {"team": away_id, "league": league_id, "season": season})
-    standings_data, _ = call_api_football("/standings", {"league": league_id, "season": season})
-
-    # Calcular posições na tabela
-    home_position = None
-    away_position = None
-    total_teams = None
+    home_position = away_position = total_teams = None
+    home_points = away_points = 0
 
     try:
-        if standings_data and standings_data.get("response"):
-            standings = standings_data["response"][0]["league"]["standings"][0]
-            total_teams = len(standings)
-            for team in standings:
-                if team["team"]["id"] == home_id:
-                    home_position = team["rank"]
-                if team["team"]["id"] == away_id:
-                    away_position = team["rank"]
-    except:
-        pass
-
-    # Calcular escanteios
-    try:
-        media_home = stats_home["response"]["fixtures"]["corners"]["for"]["average"]["home"]
-        media_away = stats_away["response"]["fixtures"]["corners"]["for"]["average"]["away"]
-        estimativa = round(float(media_home) + float(media_away), 1)
+        if standings_data:
+            for standing in standings_data.get("standings", []):
+                if standing.get("type") != "total":
+                    continue
+                for group in standing.get("groups", []):
+                    entries = group.get("standings", [])
+                    total_teams = len(entries)
+                    for entry in entries:
+                        t = entry.get("team", {})
+                        if t.get("id") == team_home:
+                            home_position = entry.get("rank")
+                            home_points = entry.get("points", 0)
+                        if t.get("id") == team_away:
+                            away_position = entry.get("rank")
+                            away_points = entry.get("points", 0)
     except Exception as e:
-        logger.warning(f"Erro ao calcular escanteios: {e}. Usando valor padrão.")
-        estimativa = DEFAULT_CORNERS_ESTIMATE
+        logger.warning(f"Erro ao processar standings para corners: {e}")
 
-    # Calcular Must Win
-    must_win_home = calculate_must_win_factor(
-        stats_home.get("response") if stats_home else None,
-        home_position,
-        total_teams
-    )
-    must_win_away = calculate_must_win_factor(
-        stats_away.get("response") if stats_away else None,
-        away_position,
-        total_teams
-    )
+    form_home, _ = _get_team_form(team_home)
+    form_away, _ = _get_team_form(team_away)
+    must_win_home = calculate_must_win_factor(form_home, home_position, total_teams)
+    must_win_away = calculate_must_win_factor(form_away, away_position, total_teams)
 
-    # Ajustar confiança baseado em Must Win
-    base_confidence = 5 if estimativa >= 10 else 4
-    # Times com Must Win alto tendem a ser mais agressivos = mais escanteios
-    must_win_adjustment = (must_win_home["score"] + must_win_away["score"]) / 10
-    adjusted_confidence = min(5, base_confidence + must_win_adjustment * 0.5)
+    estimativa = DEFAULT_CORNERS_ESTIMATE
+    must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
+    base_confidence = 4.0
+    adjusted_confidence = min(5.0, base_confidence + (must_win_combined - 5.0) * 0.15)
 
-    analise = {
-        "time_casa": {
-            "id": home_id,
-            "must_win": must_win_home
-        },
-        "time_fora": {
-            "id": away_id,
-            "must_win": must_win_away
-        },
-        "estimativa_total": estimativa,
-        "analise_must_win": {
-            "impacto": "Times pressionados tendem a jogar mais ofensivamente, gerando mais escanteios",
-            "fator_combinado": round((must_win_home["score"] + must_win_away["score"]) / 2, 1)
-        },
-        "sugestoes": [{
-            "mercado": "Over 9.5 Escanteios Totais",
-            "confianca": round(adjusted_confidence, 1),
-            "value_estimado": "+20%" if estimativa >= 10 else "+10%"
-        }]
-    }
-    return jsonify({"ok": True, "analise_escanteios": analise})
+    return jsonify({
+        "ok": True,
+        "analise_escanteios": {
+            "time_casa": {"id": team_home, "posicao": home_position, "pontos": home_points, "must_win": must_win_home},
+            "time_fora": {"id": team_away, "posicao": away_position, "pontos": away_points, "must_win": must_win_away},
+            "estimativa_total": estimativa,
+            "analise_must_win": {
+                "impacto": "Times pressionados tendem a jogar mais ofensivamente, gerando mais escanteios",
+                "fator_combinado": round(must_win_combined, 1)
+            },
+            "sugestoes": [{
+                "mercado": "Over 9.5 Escanteios Totais",
+                "confianca": round(adjusted_confidence, 1),
+                "value_estimado": "+20%" if estimativa >= 10 else "+10%"
+            }],
+            "nota": "Estimativa baseada em posicao na tabela (Must Win). Para maior precisao, use estatisticas de escanteios do time via /teams/statistics."
+        }
+    })
 
 
 @app.route("/analysis/cards")
 def analysis_cards():
     """
-    Análise profissional de cartões amarelos baseada em estatísticas com fator Must Win.
+    Análise de cartões com fator Must Win.
 
     Query Parameters:
-        - team_home (required): ID do time mandante
-        - team_away (required): ID do time visitante
-        - league (required): ID da liga
-        - season: Ano da temporada (default: 2025)
-
-    Calcula estimativa baseada em média de cartões amarelos + fator Must Win.
+        - competition (required): URN da competição
+        - season: URN da temporada (auto-detecta se omitido)
+        - team_home (required): URN do time mandante
+        - team_away (required): URN do time visitante
     """
+    competition = request.args.get("competition")
+    season_urn = request.args.get("season")
     team_home = request.args.get("team_home")
     team_away = request.args.get("team_away")
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
 
-    if not (team_home and team_away and league):
-        return error_response("Parâmetros obrigatórios: team_home, team_away, league")
+    if not (competition and team_home and team_away):
+        return error_response("Parametros obrigatorios: competition, team_home, team_away")
 
-    # Validar IDs
-    home_id, error = validate_integer_param(team_home, "team_home")
-    if error:
-        return error_response(error)
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
 
-    away_id, error = validate_integer_param(team_away, "team_away")
-    if error:
-        return error_response(error)
+    standings_data, _ = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/standings.json"
+    )
 
-    league_id, error = validate_integer_param(league, "league")
-    if error:
-        return error_response(error)
-
-    # Buscar dados
-    stats_home, _ = call_api_football("/teams/statistics", {"team": home_id, "league": league_id, "season": season})
-    stats_away, _ = call_api_football("/teams/statistics", {"team": away_id, "league": league_id, "season": season})
-    standings_data, _ = call_api_football("/standings", {"league": league_id, "season": season})
-
-    # Calcular posições na tabela
-    home_position = None
-    away_position = None
-    total_teams = None
+    home_position = away_position = total_teams = None
 
     try:
-        if standings_data and standings_data.get("response"):
-            standings = standings_data["response"][0]["league"]["standings"][0]
-            total_teams = len(standings)
-            for team in standings:
-                if team["team"]["id"] == home_id:
-                    home_position = team["rank"]
-                if team["team"]["id"] == away_id:
-                    away_position = team["rank"]
-    except:
-        pass
-
-    # Calcular cartões
-    try:
-        media_home = stats_home["response"]["cards"]["yellow"]["average"]["home"]
-        media_away = stats_away["response"]["cards"]["yellow"]["average"]["away"]
-        estimativa = round(float(media_home) + float(media_away), 1)
+        if standings_data:
+            for standing in standings_data.get("standings", []):
+                if standing.get("type") != "total":
+                    continue
+                for group in standing.get("groups", []):
+                    entries = group.get("standings", [])
+                    total_teams = len(entries)
+                    for entry in entries:
+                        t = entry.get("team", {})
+                        if t.get("id") == team_home:
+                            home_position = entry.get("rank")
+                        if t.get("id") == team_away:
+                            away_position = entry.get("rank")
     except Exception as e:
-        logger.warning(f"Erro ao calcular cartões: {e}. Usando valor padrão.")
-        estimativa = DEFAULT_CARDS_ESTIMATE
+        logger.warning(f"Erro ao processar standings para cards: {e}")
 
-    # Calcular Must Win
-    must_win_home = calculate_must_win_factor(
-        stats_home.get("response") if stats_home else None,
-        home_position,
-        total_teams
-    )
-    must_win_away = calculate_must_win_factor(
-        stats_away.get("response") if stats_away else None,
-        away_position,
-        total_teams
-    )
+    form_home, _ = _get_team_form(team_home)
+    form_away, _ = _get_team_form(team_away)
+    must_win_home = calculate_must_win_factor(form_home, home_position, total_teams)
+    must_win_away = calculate_must_win_factor(form_away, away_position, total_teams)
 
-    # Ajustar confiança baseado em Must Win
-    base_confidence = 5 if estimativa >= 5.5 else 4
-    # Times com Must Win alto tendem a jogar com mais intensidade = mais cartões
-    must_win_adjustment = (must_win_home["score"] + must_win_away["score"]) / 10
-    adjusted_confidence = min(5, base_confidence + must_win_adjustment * 0.6)
+    estimativa = DEFAULT_CARDS_ESTIMATE
+    must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
+    base_confidence = 4.0
+    adjusted_confidence = min(5.0, base_confidence + (must_win_combined - 5.0) * 0.2)
 
-    analise = {
-        "time_casa": {
-            "id": home_id,
-            "must_win": must_win_home
-        },
-        "time_fora": {
-            "id": away_id,
-            "must_win": must_win_away
-        },
-        "estimativa_total": estimativa,
-        "analise_must_win": {
-            "impacto": "Times pressionados jogam com mais intensidade e agressividade, resultando em mais cartões",
-            "fator_combinado": round((must_win_home["score"] + must_win_away["score"]) / 2, 1)
-        },
-        "sugestoes": [{
-            "mercado": "Over 5.5 Cartões Totais",
-            "confianca": round(adjusted_confidence, 1),
-            "value_estimado": "+25%" if estimativa >= 5.5 else "+10%"
-        }]
-    }
-    return jsonify({"ok": True, "analise_cartoes": analise})
+    return jsonify({
+        "ok": True,
+        "analise_cartoes": {
+            "time_casa": {"id": team_home, "posicao": home_position, "must_win": must_win_home},
+            "time_fora": {"id": team_away, "posicao": away_position, "must_win": must_win_away},
+            "estimativa_total": estimativa,
+            "analise_must_win": {
+                "impacto": "Times pressionados jogam com mais intensidade, resultando em mais cartoes",
+                "fator_combinado": round(must_win_combined, 1)
+            },
+            "sugestoes": [{
+                "mercado": "Over 5.5 Cartoes Totais",
+                "confianca": round(adjusted_confidence, 1),
+                "value_estimado": "+25%" if estimativa >= 5.5 else "+10%"
+            }]
+        }
+    })
 
 
 @app.route("/analysis/value")
@@ -1328,43 +1542,27 @@ def analysis_value():
     Query Parameters:
         - odd (required): Odd da casa de apostas (1.01 - 100.0)
         - probability (required): Probabilidade estimada (0.01 - 1.0)
-
-    Returns:
-        - value > 0: Aposta com valor (recomendada)
-        - value < 0: Sem valor (evitar)
     """
     odd_str = request.args.get("odd")
     prob_str = request.args.get("probability")
 
-    # Validar odd
-    odd, error = validate_numeric_param(
-        odd_str, "odd",
-        min_val=MIN_ODD_VALUE,
-        max_val=MAX_ODD_VALUE,
-        required=True
-    )
+    odd, error = validate_numeric_param(odd_str, "odd", min_val=MIN_ODD_VALUE, max_val=MAX_ODD_VALUE)
     if error:
         return error_response(f"{error}. Exemplo: odd=2.50")
 
-    # Validar probability
     prob, error = validate_numeric_param(
-        prob_str, "probability",
-        min_val=MIN_PROBABILITY,
-        max_val=MAX_PROBABILITY,
-        required=True
+        prob_str, "probability", min_val=MIN_PROBABILITY, max_val=MAX_PROBABILITY
     )
     if error:
         return error_response(f"{error}. Exemplo: probability=0.50 (50%)")
 
-    # Calcular value
     value = round((prob * odd) - 1, 3)
-
     return jsonify({
         "ok": True,
         "value": value,
-        "interpretation": "Value Bet ✅" if value > 0 else "Sem Value ❌",
+        "interpretation": "Value Bet" if value > 0 else "Sem Value",
         "recommendation": "Apostar" if value > 0.05 else "Evitar",
-        "formula": f"({prob} × {odd}) - 1 = {value}"
+        "formula": f"({prob} x {odd}) - 1 = {value}"
     })
 
 
@@ -1380,34 +1578,27 @@ def news_context():
         - team (required): Nome do time
         - league: Nome da liga (opcional)
         - days: Últimos N dias (1-30, default: 3)
-
-    Busca notícias sobre lesões, suspensões, mudanças técnicas, etc.
-    Fontes: GE Globo, ESPN Brasil
     """
     team = request.args.get("team")
     league = request.args.get("league")
     days_str = request.args.get("days", str(DEFAULT_NEWS_DAYS))
 
     if not team:
-        return error_response("Parâmetro 'team' é obrigatório. Exemplo: team=Flamengo")
+        return error_response("Parametro 'team' e obrigatorio. Exemplo: team=Flamengo")
 
-    # Validar days
-    days, error = validate_integer_param(days_str, "days", required=False)
-    if error:
-        return error_response(error)
-
-    if days is None:
-        days = DEFAULT_NEWS_DAYS
+    try:
+        days = int(days_str)
+    except (ValueError, TypeError):
+        return error_response("Parametro 'days' deve ser um inteiro")
 
     if days < 1 or days > MAX_NEWS_DAYS:
-        return error_response(f"Parâmetro 'days' deve estar entre 1 e {MAX_NEWS_DAYS}")
+        return error_response(f"Parametro 'days' deve estar entre 1 e {MAX_NEWS_DAYS}")
 
     if not NEWS_API_KEY:
-        return error_response("NEWS_API_KEY não configurada", 503)
+        return error_response("NEWS_API_KEY nao configurada", 503)
 
-    query = f"{team} {league or ''} futebol lesão suspensão demitido técnico clima site:ge.globo.com OR site:espn.com.br"
+    query = f"{team} {league or ''} futebol lesao suspensao demitido tecnico site:ge.globo.com OR site:espn.com.br"
     url = "https://newsapi.org/v2/everything"
-    headers = {"Authorization": NEWS_API_KEY}
     params = {
         "q": query,
         "language": "pt",
@@ -1417,10 +1608,9 @@ def news_context():
     }
 
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
+        response = requests.get(url, headers={"Authorization": NEWS_API_KEY}, params=params, timeout=10)
         if response.status_code != 200:
-            logger.error(f"[NEWS API] HTTP {response.status_code}")
-            return error_response(f"Erro na API de notícias: HTTP {response.status_code}", 500)
+            return error_response(f"Erro na API de noticias: HTTP {response.status_code}", 500)
 
         data = response.json()
         artigos = [{
@@ -1439,345 +1629,193 @@ def news_context():
             "noticias": artigos
         })
     except Exception as e:
-        logger.error(f"[NEWS API ERROR] {str(e)}")
-        return error_response(f"Erro ao buscar notícias: {str(e)}", 500)
+        return error_response(f"Erro ao buscar noticias: {str(e)}", 500)
 
 
 # =======================
-# Endpoint de análise completa
+# Análise completa
 # =======================
 @app.route("/analysis/complete")
 def analysis_complete():
     """
-    Análise completa de um jogo consolidando todos os endpoints de análise.
+    Análise completa de um jogo consolidando standings, H2H e Must Win.
 
     Query Parameters:
-        - team_home (required): ID do time mandante
-        - team_away (required): ID do time visitante
-        - league (required): ID da liga
-        - season: Ano da temporada (default: 2025)
-        - fixture: ID do jogo específico (opcional, para análise pré-jogo)
+        - competition (required): URN da competição (ex: sr:competition:325)
+        - team_home (required): URN do time mandante (ex: sr:competitor:1234)
+        - team_away (required): URN do time visitante (ex: sr:competitor:5678)
+        - season: URN da temporada (auto-detecta se omitido)
+        - fixture: URN do jogo para probabilidades (ex: sr:sport_event:12345)
 
-    Retorna análise consolidada incluindo:
-    - Contexto (posições na tabela, forma recente)
-    - Estatísticas dos times
+    Retorna análise consolidada com:
+    - Classificação dos times
+    - Fator Must Win
     - H2H (últimos confrontos)
-    - Análise de escanteios (com Must Win)
-    - Análise de cartões (com Must Win)
-    - Lesões e suspensões
-    - Previsões IA (se fixture fornecido)
+    - Probabilidades (se fixture fornecido)
+    - Análise de escanteios e cartões (baseada em Must Win)
     """
+    competition = request.args.get("competition")
     team_home = request.args.get("team_home")
     team_away = request.args.get("team_away")
-    league = request.args.get("league")
-    season = request.args.get("season", str(DEFAULT_SEASON))
+    season_urn = request.args.get("season")
     fixture_id = request.args.get("fixture")
 
-    # Validar parâmetros obrigatórios
-    if not (team_home and team_away and league):
-        return error_response("Parâmetros obrigatórios: team_home, team_away, league")
+    if not (competition and team_home and team_away):
+        return error_response("Parametros obrigatorios: competition, team_home, team_away")
 
-    # Validar IDs
-    home_id, error = validate_integer_param(team_home, "team_home")
-    if error:
-        return error_response(error)
-
-    away_id, error = validate_integer_param(team_away, "team_away")
-    if error:
-        return error_response(error)
-
-    league_id, error = validate_integer_param(league, "league")
-    if error:
-        return error_response(error)
-
-    # Estrutura da resposta completa
     complete_analysis = {
         "ok": True,
         "jogo": {
-            "mandante_id": home_id,
-            "mandante_nome": None,  # Será preenchido ao buscar stats
-            "visitante_id": away_id,
-            "visitante_nome": None,  # Será preenchido ao buscar stats
-            "liga_id": league_id,
-            "temporada": season
+            "mandante_id": team_home,
+            "visitante_id": team_away,
+            "competicao_id": competition,
+            "temporada": season_urn
         },
         "contexto": {},
-        "estatisticas": {},
         "confronto_direto": {},
+        "probabilidades": None,
         "analise_escanteios": {},
-        "analise_cartoes": {},
-        "lesoes": {},
-        "predicoes": None
+        "analise_cartoes": {}
     }
 
-    # ====== 1. BUSCAR ESTATÍSTICAS DOS TIMES ======
-    logger.info(f"[ANALYSIS COMPLETE] Buscando estatísticas dos times {home_id} vs {away_id}")
-    stats_home, error_home = call_api_football("/teams/statistics", {
-        "team": home_id,
-        "league": league_id,
-        "season": season
-    })
-    stats_away, error_away = call_api_football("/teams/statistics", {
-        "team": away_id,
-        "league": league_id,
-        "season": season
-    })
+    # 1. Auto-detectar temporada
+    if not season_urn:
+        logger.info("[ANALYSIS COMPLETE] Detectando temporada atual...")
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            logger.warning(f"[ANALYSIS COMPLETE] Falha ao detectar temporada: {error}")
+        else:
+            complete_analysis["jogo"]["temporada"] = season_urn
 
-    # Extrair apenas estatísticas essenciais (otimizado para ChatGPT)
-    if stats_home and stats_home.get("response"):
-        home_stats = stats_home["response"]
-        # Extrair nome do time
-        complete_analysis["jogo"]["mandante_nome"] = home_stats.get("team", {}).get("name", "Desconhecido")
-
-        complete_analysis["estatisticas"]["mandante"] = {
-            "forma": home_stats.get("form"),
-            "jogos_casa": home_stats.get("fixtures", {}).get("played", {}).get("home", 0),
-            "vitorias_casa": home_stats.get("fixtures", {}).get("wins", {}).get("home", 0),
-            "empates_casa": home_stats.get("fixtures", {}).get("draws", {}).get("home", 0),
-            "derrotas_casa": home_stats.get("fixtures", {}).get("loses", {}).get("home", 0),
-            "gols_marcados_casa": home_stats.get("goals", {}).get("for", {}).get("average", {}).get("home", "0"),
-            "gols_sofridos_casa": home_stats.get("goals", {}).get("against", {}).get("average", {}).get("home", "0")
-        }
-
-    if stats_away and stats_away.get("response"):
-        away_stats = stats_away["response"]
-        # Extrair nome do time
-        complete_analysis["jogo"]["visitante_nome"] = away_stats.get("team", {}).get("name", "Desconhecido")
-
-        complete_analysis["estatisticas"]["visitante"] = {
-            "forma": away_stats.get("form"),
-            "jogos_fora": away_stats.get("fixtures", {}).get("played", {}).get("away", 0),
-            "vitorias_fora": away_stats.get("fixtures", {}).get("wins", {}).get("away", 0),
-            "empates_fora": away_stats.get("fixtures", {}).get("draws", {}).get("away", 0),
-            "derrotas_fora": away_stats.get("fixtures", {}).get("loses", {}).get("away", 0),
-            "gols_marcados_fora": away_stats.get("goals", {}).get("for", {}).get("average", {}).get("away", "0"),
-            "gols_sofridos_fora": away_stats.get("goals", {}).get("against", {}).get("average", {}).get("away", "0")
-        }
-
-    # ====== 2. BUSCAR CLASSIFICAÇÃO ======
-    logger.info(f"[ANALYSIS COMPLETE] Buscando classificação da liga {league_id}")
-    standings_data, _ = call_api_football("/standings", {
-        "league": league_id,
-        "season": season
-    })
-
-    home_position = None
-    away_position = None
-    total_teams = None
-    home_points = None
-    away_points = None
-
-    try:
-        if standings_data and standings_data.get("response"):
-            standings = standings_data["response"][0]["league"]["standings"][0]
-            total_teams = len(standings)
-            for team in standings:
-                if team["team"]["id"] == home_id:
-                    home_position = team["rank"]
-                    home_points = team["points"]
-                if team["team"]["id"] == away_id:
-                    away_position = team["rank"]
-                    away_points = team["points"]
-
-            complete_analysis["contexto"]["classificacao"] = {
-                "mandante": {
-                    "posicao": home_position,
-                    "pontos": home_points
-                },
-                "visitante": {
-                    "posicao": away_position,
-                    "pontos": away_points
-                },
-                "total_times": total_teams
-            }
-    except Exception as e:
-        logger.warning(f"[ANALYSIS COMPLETE] Erro ao processar classificação: {str(e)}")
-
-    # ====== 3. CALCULAR MUST WIN ======
-    logger.info("[ANALYSIS COMPLETE] Calculando fator Must Win")
-    must_win_home = calculate_must_win_factor(
-        stats_home.get("response") if stats_home else None,
-        home_position,
-        total_teams
-    )
-    must_win_away = calculate_must_win_factor(
-        stats_away.get("response") if stats_away else None,
-        away_position,
-        total_teams
-    )
-
-    complete_analysis["contexto"]["must_win"] = {
-        "mandante": must_win_home,
-        "visitante": must_win_away,
-        "analise": (
-            "Mais importante para o time da casa" if must_win_home["score"] > must_win_away["score"] + 1.5 else
-            "Mais importante para o time visitante" if must_win_away["score"] > must_win_home["score"] + 1.5 else
-            "Importância equilibrada para ambos os times"
+    # 2. Buscar standings
+    if season_urn:
+        logger.info(f"[ANALYSIS COMPLETE] Buscando classificacao de {competition}")
+        standings_data, _ = call_sportradar(
+            f"/competitions/{competition}/seasons/{season_urn}/standings.json"
         )
-    }
 
-    # ====== 4. BUSCAR H2H ======
-    logger.info("[ANALYSIS COMPLETE] Buscando histórico H2H")
-    h2h_data, _ = call_api_football("/fixtures/headtohead", {
-        "h2h": f"{home_id}-{away_id}"
-    })
+        home_position = away_position = total_teams = None
+        home_points = away_points = 0
+        home_name = away_name = None
 
-    if h2h_data and h2h_data.get("response"):
+        try:
+            if standings_data:
+                for standing in standings_data.get("standings", []):
+                    if standing.get("type") != "total":
+                        continue
+                    for group in standing.get("groups", []):
+                        entries = group.get("standings", [])
+                        total_teams = len(entries)
+                        for entry in entries:
+                            t = entry.get("team", {})
+                            if t.get("id") == team_home:
+                                home_position = entry.get("rank")
+                                home_points = entry.get("points", 0)
+                                home_name = t.get("name")
+                            if t.get("id") == team_away:
+                                away_position = entry.get("rank")
+                                away_points = entry.get("points", 0)
+                                away_name = t.get("name")
+        except Exception as e:
+            logger.warning(f"[ANALYSIS COMPLETE] Erro ao processar standings: {e}")
+
+        if home_name:
+            complete_analysis["jogo"]["mandante_nome"] = home_name
+        if away_name:
+            complete_analysis["jogo"]["visitante_nome"] = away_name
+
+        complete_analysis["contexto"]["classificacao"] = {
+            "mandante": {"posicao": home_position, "pontos": home_points},
+            "visitante": {"posicao": away_position, "pontos": away_points},
+            "total_times": total_teams
+        }
+
+        # 3. Must Win com forma recente
+        logger.info("[ANALYSIS COMPLETE] Buscando forma recente dos times")
+        form_home, _ = _get_team_form(team_home)
+        form_away, _ = _get_team_form(team_away)
+        must_win_home = calculate_must_win_factor(form_home, home_position, total_teams)
+        must_win_away = calculate_must_win_factor(form_away, away_position, total_teams)
+        complete_analysis["contexto"]["must_win"] = {
+            "mandante": must_win_home,
+            "visitante": must_win_away,
+            "analise": (
+                "Mais importante para o time da casa" if must_win_home["score"] > must_win_away["score"] + 1.5 else
+                "Mais importante para o time visitante" if must_win_away["score"] > must_win_home["score"] + 1.5 else
+                "Importancia equilibrada para ambos os times"
+            )
+        }
+
+        # Análise de escanteios e cartões
+        must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
+        complete_analysis["analise_escanteios"] = {
+            "estimativa_total": DEFAULT_CORNERS_ESTIMATE,
+            "fator_must_win": round(must_win_combined, 1),
+            "sugestao": "Over 9.5 Escanteios Totais" if must_win_combined >= 5 else "Indefinido"
+        }
+        complete_analysis["analise_cartoes"] = {
+            "estimativa_total": DEFAULT_CARDS_ESTIMATE,
+            "fator_must_win": round(must_win_combined, 1),
+            "sugestao": "Over 5.5 Cartoes Totais" if must_win_combined >= 5 else "Indefinido"
+        }
+    else:
+        form_home, _ = _get_team_form(team_home)
+        form_away, _ = _get_team_form(team_away)
+        must_win_home = calculate_must_win_factor(form_home)
+        must_win_away = calculate_must_win_factor(form_away)
+
+    # 4. H2H
+    logger.info("[ANALYSIS COMPLETE] Buscando historico H2H")
+    h2h_data, _ = call_sportradar(
+        f"/competitors/{team_home}/versus/{team_away}/summaries.json"
+    )
+    if h2h_data:
+        last = h2h_data.get("last_meetings", {}).get("results", [])
         h2h_matches = []
-        for match in h2h_data["response"][:5]:  # Top 5
+        for match in last[:5]:
+            se = match.get("sport_event", {})
+            so = match.get("sport_event_status", {})
+            comps = se.get("competitors", [])
+            hn = an = None
+            for c in comps:
+                if c.get("qualifier") == "home": hn = c.get("name")
+                if c.get("qualifier") == "away": an = c.get("name")
             h2h_matches.append({
-                "data": match.get("fixture", {}).get("date"),
-                "mandante": match.get("teams", {}).get("home", {}).get("name"),
-                "visitante": match.get("teams", {}).get("away", {}).get("name"),
-                "placar": f"{match.get('goals', {}).get('home')}-{match.get('goals', {}).get('away')}"
+                "data": se.get("scheduled"),
+                "mandante": hn,
+                "visitante": an,
+                "placar": f"{so.get('home_score', 0)}-{so.get('away_score', 0)}"
             })
         complete_analysis["confronto_direto"] = {
-            "total": len(h2h_data["response"]),
+            "total": len(last),
             "ultimos_jogos": h2h_matches
         }
 
-    # ====== 5. ANÁLISE DE ESCANTEIOS ======
-    logger.info("[ANALYSIS COMPLETE] Calculando análise de escanteios")
-    corners_estimate = DEFAULT_CORNERS_ESTIMATE
-    try:
-        if stats_home and stats_home.get("response") and stats_away and stats_away.get("response"):
-            home_corners = stats_home["response"].get("fixtures", {}).get("played", {}).get("home", 0)
-            away_corners = stats_away["response"].get("fixtures", {}).get("played", {}).get("away", 0)
-
-            if home_corners > 0 and away_corners > 0:
-                # Simplificação: usar estimativa baseada em média
-                corners_estimate = 10.5  # Estimativa média
-
-        must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
-        confidence_corners = min(5.0, 4.0 + (must_win_combined - 5.0) * 0.15)
-
-        complete_analysis["analise_escanteios"] = {
-            "time_casa": {
-                "id": home_id,
-                "must_win": must_win_home
-            },
-            "time_fora": {
-                "id": away_id,
-                "must_win": must_win_away
-            },
-            "estimativa_total": round(corners_estimate, 1),
-            "analise_must_win": {
-                "fator_combinado": round(must_win_combined, 1),
-                "impacto": "Times pressionados tendem a jogar mais ofensivamente, gerando mais escanteios"
-            },
-            "sugestoes": [
-                {
-                    "mercado": f"Over {int(corners_estimate) - 1}.5 Escanteios",
-                    "confianca": round(confidence_corners, 1),
-                    "value_estimado": "+15%" if must_win_combined > 6.0 else "+10%"
-                }
-            ]
-        }
-    except Exception as e:
-        logger.warning(f"[ANALYSIS COMPLETE] Erro na análise de escanteios: {str(e)}")
-
-    # ====== 6. ANÁLISE DE CARTÕES ======
-    logger.info("[ANALYSIS COMPLETE] Calculando análise de cartões")
-    cards_estimate = DEFAULT_CARDS_ESTIMATE
-    try:
-        must_win_combined = (must_win_home["score"] + must_win_away["score"]) / 2
-        confidence_cards = min(5.0, 4.0 + (must_win_combined - 5.0) * 0.18)
-
-        complete_analysis["analise_cartoes"] = {
-            "time_casa": {
-                "id": home_id,
-                "must_win": must_win_home
-            },
-            "time_fora": {
-                "id": away_id,
-                "must_win": must_win_away
-            },
-            "estimativa_total": round(cards_estimate, 1),
-            "analise_must_win": {
-                "fator_combinado": round(must_win_combined, 1),
-                "impacto": "Times pressionados jogam com mais intensidade e agressividade, resultando em mais cartões"
-            },
-            "sugestoes": [
-                {
-                    "mercado": f"Over {int(cards_estimate) - 1}.5 Cartões",
-                    "confianca": round(confidence_cards, 1),
-                    "value_estimado": "+20%" if must_win_combined > 6.5 else "+12%"
-                }
-            ]
-        }
-    except Exception as e:
-        logger.warning(f"[ANALYSIS COMPLETE] Erro na análise de cartões: {str(e)}")
-
-    # ====== 7. BUSCAR LESÕES ======
-    logger.info("[ANALYSIS COMPLETE] Buscando lesões")
-    injuries_home, _ = call_api_football("/injuries", {
-        "league": league_id,
-        "team": home_id,
-        "season": season
-    })
-    injuries_away, _ = call_api_football("/injuries", {
-        "league": league_id,
-        "team": away_id,
-        "season": season
-    })
-
-    # Otimizar lesões - apenas informações essenciais (máximo 5 por time)
-    injuries_home_list = []
-    injuries_away_list = []
-
-    if injuries_home and injuries_home.get("response"):
-        for injury in injuries_home["response"][:5]:  # Limitar a 5
-            injuries_home_list.append({
-                "jogador": injury.get("player", {}).get("name"),
-                "tipo": injury.get("player", {}).get("type"),
-                "motivo": injury.get("player", {}).get("reason")
-            })
-
-    if injuries_away and injuries_away.get("response"):
-        for injury in injuries_away["response"][:5]:  # Limitar a 5
-            injuries_away_list.append({
-                "jogador": injury.get("player", {}).get("name"),
-                "tipo": injury.get("player", {}).get("type"),
-                "motivo": injury.get("player", {}).get("reason")
-            })
-
-    complete_analysis["lesoes"] = {
-        "mandante": injuries_home_list,
-        "visitante": injuries_away_list,
-        "total_mandante": len(injuries_home_list),
-        "total_visitante": len(injuries_away_list)
-    }
-
-    # ====== 8. PREVISÕES IA (se fixture fornecido) ======
+    # 5. Probabilidades (se fixture fornecido)
     if fixture_id:
-        logger.info(f"[ANALYSIS COMPLETE] Buscando previsões para fixture {fixture_id}")
-        predictions, _ = call_api_football("/predictions", {"fixture": fixture_id})
-        if predictions and predictions.get("response"):
-            pred = predictions["response"][0]
-            # Extrair apenas dados essenciais das previsões
-            complete_analysis["predicoes"] = {
-                "vencedor": pred.get("predictions", {}).get("winner", {}).get("name"),
-                "percentual_casa": pred.get("predictions", {}).get("percent", {}).get("home"),
-                "percentual_empate": pred.get("predictions", {}).get("percent", {}).get("draw"),
-                "percentual_fora": pred.get("predictions", {}).get("percent", {}).get("away"),
-                "conselhos": pred.get("predictions", {}).get("advice", "")
-            }
+        logger.info(f"[ANALYSIS COMPLETE] Buscando probabilidades do jogo {fixture_id}")
+        prob_data, _ = call_sportradar(f"/sport_events/{fixture_id}/probabilities.json")
+        if prob_data:
+            probs = prob_data.get("probabilities", [])
+            prob_3way = next((p for p in probs if p.get("market") == "3way"), None)
+            if prob_3way:
+                outcomes = {o["outcome"]: round(o["probability"] * 100, 1) for o in prob_3way.get("outcomes", [])}
+                complete_analysis["probabilidades"] = {
+                    "mercado": "3way",
+                    "vitoria_mandante": outcomes.get("home_team_winner"),
+                    "empate": outcomes.get("draw"),
+                    "vitoria_visitante": outcomes.get("away_team_winner")
+                }
 
-    logger.info("[ANALYSIS COMPLETE] Análise completa gerada com sucesso")
     return jsonify(complete_analysis)
 
 
 # =======================
-# Handlers de erro
+# Inicialização
 # =======================
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"ok": False, "error": "Rota não encontrada"}), 404
-
-@app.errorhandler(500)
-def internal_error(e):
-    return jsonify({"ok": False, "error": "Erro interno no servidor"}), 500
-
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    logger.info(f"Iniciando Apostas Esportivas Pro API v{API_VERSION} na porta {port}")
+    logger.info(f"Provider: Sportradar Soccer API v4")
+    app.run(host="0.0.0.0", port=port, debug=debug)
