@@ -1,43 +1,52 @@
-# ⚽ GPT Apostas Futebol Pro
+# ⚽ Apostas Esportivas Pro — API v6.1
 
-> Sistema profissional de análise de apostas esportivas com IA e dados em tempo real
+> Backend profissional de análise de apostas esportivas com IA (ChatGPT) e dados em tempo real
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.0.3-green.svg)](https://flask.palletsprojects.com/)
-[![API-Sports](https://img.shields.io/badge/API--Sports-v3-orange.svg)](https://api-sports.io/)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-black.svg)](https://vercel.com)
+[![Sportradar](https://img.shields.io/badge/Sportradar-Soccer%20v4-orange.svg)](https://developer.sportradar.com/)
+[![Railway](https://img.shields.io/badge/Deploy-Railway-purple.svg)](https://railway.app)
 
 ## 📋 Sobre o Projeto
 
-**GPT Apostas Futebol Pro** é um sistema avançado que combina inteligência artificial (ChatGPT) com dados esportivos em tempo real da API-Sports para fornecer análises profissionais de apostas em futebol.
+**Apostas Esportivas Pro** é um backend Flask que fornece dados esportivos em tempo real via **Sportradar Soccer API v4** para um **Custom GPT** no ChatGPT. O GPT usa esses dados para análises profissionais de apostas — com classificação, H2H, lesões, odds, previsões, escanteios, cartões e o exclusivo **Fator Must Win**.
 
 ### ✨ Recursos Principais
 
-- 🔄 **Dados em Tempo Real**: Integração direta com API-Sports
-- 🤖 **Análise por IA**: Powered by ChatGPT para insights profundos
-- 📊 **50+ Ligas**: Cobertura global incluindo Brasileirão, Champions League, e principais ligas europeias
-- 📈 **Estatísticas Avançadas**: H2H, lesões, odds reais, previsões IA
-- 💰 **Value Betting**: Identificação automática de apostas com valor
-- 🎯 **Kelly Criterion**: Gestão profissional de banca
-- ⚡ **Jogos Ao Vivo**: Monitoramento de partidas em andamento
+- 🔄 **Dados em Tempo Real**: Sportradar Soccer API v4
+- 🤖 **Custom GPT**: Integração nativa com ChatGPT via OpenAPI Actions
+- 🎯 **Fator Must Win**: Score 0-10 de pressão por resultado (exclusivo)
+- 📊 **22 Competições**: Brasil, Europa, Américas, Seleções
+- ⚽ **Análise Completa**: 1 endpoint substitui 7+ chamadas separadas
+- 💰 **Value Betting**: Cálculo automático de apostas com valor
+- ⚡ **Jogos Ao Vivo**: Análise minuto a minuto com timeline
+- 🔍 **Notícias**: Contexto de GE.globo.com e ESPN.com.br
+- 🏥 **Lesões e Suspensões**: Dados atualizados por jogo
+- 📈 **Artilheiros e Stats**: Estatísticas detalhadas por time
+
+---
 
 ## 🚀 Tecnologias
 
-- **Backend**: Python 3.11+ com Flask
-- **API de Dados**: API-Sports v3 (api-football)
-- **Deploy**: Vercel (Serverless Functions)
-- **IA**: ChatGPT (OpenAI)
-- **Segurança**: Variáveis de ambiente, CORS configurado
+| Componente | Tecnologia |
+|---|---|
+| Backend | Python 3.11+ + Flask 3.0.3 |
+| Dados Esportivos | Sportradar Soccer API v4 |
+| Deploy | Railway (Container) + Vercel (Serverless) |
+| IA | ChatGPT Custom GPT (OpenAI) |
+| Documentação | OpenAPI 3.1.0 |
+| Rate Limiting | 1 req/s (Sportradar trial) |
 
-## 📦 Instalação
+---
+
+## 📦 Instalação Local
 
 ### Pré-requisitos
 
-- Python 3.11 ou superior
-- Conta na [API-Sports](https://api-sports.io/) (Free tier disponível)
-- Conta no [Vercel](https://vercel.com) (opcional, para deploy)
+- Python 3.11+
+- Chave de API Sportradar (trial gratuito em [developer.sportradar.com](https://developer.sportradar.com))
 
-### Instalação Local
+### Setup
 
 ```bash
 # Clone o repositório
@@ -47,231 +56,262 @@ cd apostasesportivaspro
 # Instale as dependências
 pip install -r requirements.txt
 
-# Configure as variáveis de ambiente
-# Crie um arquivo .env na raiz do projeto:
-API_KEY=sua_chave_api_sports_aqui
-API_HOST=v3.football.api-sports.io
+# Configure a variável de ambiente
+echo "API_KEY=sua_chave_sportradar_aqui" > .env
 
 # Execute o servidor
 python main.py
 ```
 
-O servidor estará disponível em `http://localhost:8080`
+Servidor disponível em `http://localhost:8080`
 
-## 🌐 Deploy na Vercel
+---
 
-1. Faça fork/clone deste repositório
-2. Importe o projeto no [Vercel](https://vercel.com)
-3. Configure as variáveis de ambiente:
-   - `API_KEY`: Sua chave da API-Sports
-   - `API_HOST`: `v3.football.api-sports.io`
-4. Deploy automático! ✅
+## 🌐 Deploy
+
+### Railway (Recomendado)
+
+1. Conecte o repositório no [Railway](https://railway.app)
+2. Configure a variável de ambiente: `API_KEY=sua_chave_sportradar`
+3. Deploy automático via Nixpacks ✅
+
+### Vercel (Serverless)
+
+1. Importe o projeto no [Vercel](https://vercel.com)
+2. Configure: `API_KEY=sua_chave_sportradar`
+3. O arquivo `vercel.json` e `api/index.py` já estão configurados ✅
+
+---
 
 ## 📡 Endpoints da API
 
-### Endpoints Básicos
+> **Importante:** Todos os IDs usam formato URN Sportradar — ex: `sr:competition:325`, `sr:competitor:4783`.
+> Use `/competitions` para listar todas as competições com seus URNs.
 
-| Endpoint | Descrição | Parâmetros |
-|----------|-----------|------------|
-| `GET /health` | Status da API | - |
-| `GET /` | Documentação completa | - |
-| `GET /fixtures` | Jogos por data/liga | `date`, `league`, `season`, `status`, `timezone` |
-| `GET /standings` | Classificação | `league`, `season` |
-| `GET /teams` | Times da liga | `league`, `season` |
-| `GET /teams/statistics` | Stats de um time | `team`, `league`, `season` |
-| `GET /players/topscorers` | Artilheiros | `league`, `season` |
+### Infraestrutura
 
-### Endpoints Avançados v3.0 🆕
+| Endpoint | Descrição |
+|---|---|
+| `GET /` | Documentação e status da API |
+| `GET /health` | Health check com teste de conectividade |
+| `GET /openapi.json` | Schema OpenAPI 3.1.0 completo |
 
-| Endpoint | Descrição | Parâmetros |
-|----------|-----------|------------|
-| `GET /fixtures/headtohead` | Confronto direto (H2H) | `h2h` (ex: `127-121`) |
-| `GET /injuries` | Lesões e suspensões | `league`, `team`, `season` |
-| `GET /odds` | Odds em tempo real | `fixture` (id do jogo) |
-| `GET /predictions` | Previsões IA | `fixture` (id do jogo) |
-| `GET /fixtures/live` | Jogos ao vivo | - |
+### Competições e Temporadas
 
-### Exemplos de Uso
+| Endpoint | Parâmetros | Descrição |
+|---|---|---|
+| `GET /competitions` | — | Lista 22 competições com URNs |
+| `GET /leagues` | — | Alias de `/competitions` |
+| `GET /seasons` | `competition` (URN) | Temporadas de uma competição |
 
-```bash
-# Buscar jogos do Brasileirão de hoje
-curl "https://seu-dominio.vercel.app/fixtures?date=2024-11-06&league=71&season=2024"
+### Fixtures e Jogos
 
-# Classificação do Brasileirão
-curl "https://seu-dominio.vercel.app/standings?league=71&season=2024"
+| Endpoint | Parâmetros | Descrição |
+|---|---|---|
+| `GET /fixtures` | `date` (YYYY-MM-DD), `competition` (URN, opcional) | Jogos por data — inclui `mandante_id` e `visitante_id` |
+| `GET /fixtures/headtohead` | `team1` (URN), `team2` (URN) | H2H: histórico + próximos jogos |
+| `GET /fixtures/live` | — | Todos os jogos ao vivo agora |
+| `GET /fixtures/live/analysis` | `fixture` (URN) | Análise completa ao vivo |
+| `GET /fixtures/live/minute-by-minute` | `fixture` (URN) | Timeline minuto a minuto |
 
-# Confronto direto Flamengo vs Palmeiras
-curl "https://seu-dominio.vercel.app/fixtures/headtohead?h2h=127-121"
+### Dados por Competição
 
-# Lesões do Flamengo
-curl "https://seu-dominio.vercel.app/injuries?league=71&team=127&season=2024"
+| Endpoint | Parâmetros | Descrição |
+|---|---|---|
+| `GET /standings` | `competition` (URN), `season` (URN, opcional) | Classificação — inclui `time_id` de cada time |
+| `GET /teams/statistics` | `team` (URN), `competition` (URN), `season` (URN, opcional) | Estatísticas do time |
+| `GET /players/topscorers` | `competition` (URN), `season` (URN, opcional) | Artilheiros |
+| `GET /injuries` | `competition` (URN) ou `team` (URN), `season` (URN, opcional) | Lesões e suspensões |
 
-# Jogos ao vivo agora
-curl "https://seu-dominio.vercel.app/fixtures/live"
-```
+### Previsões e Apostas
 
-## 🏆 Ligas Suportadas
+| Endpoint | Parâmetros | Descrição |
+|---|---|---|
+| `GET /predictions` | `fixture` (URN) | Previsões IA |
+| `GET /odds` | `fixture` (URN) | Odds dos bookmakers |
+| `GET /analysis/value` | `odd`, `probability` | Cálculo de value betting |
+
+### Análises com Fator Must Win
+
+| Endpoint | Parâmetros | Descrição |
+|---|---|---|
+| `GET /analysis/corners` | `team_home` (URN), `team_away` (URN), `competition` (URN) | Análise de escanteios |
+| `GET /analysis/cards` | `team_home` (URN), `team_away` (URN), `competition` (URN) | Análise de cartões |
+| `GET /analysis/complete` | `team_home` (URN), `team_away` (URN), `competition` (URN), `fixture` (URN, opcional) | **Análise completa** — substitui 7+ chamadas |
+
+### Notícias
+
+| Endpoint | Parâmetros | Descrição |
+|---|---|---|
+| `GET /news/context` | `team`, `league`, `days` (1-30, padrão 3) | Notícias recentes (GE.globo + ESPN) |
+
+---
+
+## 🏆 Competições Suportadas
 
 ### Brasil
-- **71** - Brasileirão Série A
-- **72** - Brasileirão Série B
-- **73** - Copa do Brasil
-- **75** - Campeonato Carioca
-- **76** - Campeonato Paulista
+| Competição | URN |
+|---|---|
+| Brasileirão Série A | `sr:competition:325` |
+| Brasileirão Série B | `sr:competition:390` |
+| Copa do Brasil | `sr:competition:531` |
+| Campeonato Carioca | `sr:competition:621` |
+| Campeonato Paulista | `sr:competition:624` |
 
 ### Europa
-- **39** - Premier League (Inglaterra)
-- **140** - La Liga (Espanha)
-- **135** - Serie A (Itália)
-- **78** - Bundesliga (Alemanha)
-- **61** - Ligue 1 (França)
+| Competição | URN |
+|---|---|
+| Premier League | `sr:competition:17` |
+| La Liga | `sr:competition:8` |
+| Serie A (Itália) | `sr:competition:23` |
+| Bundesliga | `sr:competition:35` |
+| Ligue 1 | `sr:competition:34` |
+| Primeira Liga | `sr:competition:238` |
+| Eredivisie | `sr:competition:37` |
 
-### Competições Internacionais
-- **2** - UEFA Champions League
-- **3** - UEFA Europa League
-- **13** - Copa Libertadores
-- **11** - Copa Sul-Americana
+### Internacional
+| Competição | URN |
+|---|---|
+| UEFA Champions League | `sr:competition:7` |
+| UEFA Europa League | `sr:competition:679` |
+| UEFA Conference League | `sr:competition:929` |
+| Copa Libertadores | `sr:competition:384` |
+| Copa Sul-Americana | `sr:competition:480` |
 
-[Ver lista completa de 50+ ligas no código]
+### Américas e Seleções
+| Competição | URN |
+|---|---|
+| MLS | `sr:competition:242` |
+| Liga MX | `sr:competition:316` |
+| Copa do Mundo FIFA | `sr:competition:1` |
+| Eurocopa | `sr:competition:9` |
+| Copa América | `sr:competition:133` |
+
+---
+
+## 🎯 Fator Must Win
+
+O **Must Win Score** (0-10) mede a pressão por resultado de um time, integrado automaticamente nas análises de escanteios, cartões e ao vivo.
+
+| Score | Nível | Descrição |
+|---|---|---|
+| 8-10 | CRÍTICO | Pressão extrema (rebaixamento, sequência péssima) |
+| 6.5-8 | ALTO | Precisa pontuar urgentemente |
+| 5-6.5 | MODERADO | Jogo importante, mas sem desespero |
+| 0-5 | BAIXO | Situação confortável |
+
+**Exemplo de uso:**
+```bash
+# Análise completa com Must Win integrado
+curl "https://apostasesportivaspro.up.railway.app/analysis/complete\
+?team_home=sr:competitor:4783\
+&team_away=sr:competitor:4785\
+&competition=sr:competition:325"
+```
+
+---
 
 ## 🤖 Integração com ChatGPT
 
-Este backend foi projetado para ser usado como **Custom GPT Action**. O GPT utiliza os endpoints para:
+Este projeto foi projetado para ser usado como **Custom GPT Action**.
 
-1. Buscar dados em tempo real
-2. Analisar estatísticas e históricos
-3. Calcular probabilidades e value betting
-4. Considerar lesões e contexto atual
-5. Comparar com previsões IA da API-Sports
-6. Fornecer recomendações profissionais
+### Como configurar
 
-### Como Configurar o GPT
+1. Crie um Custom GPT em [chat.openai.com](https://chat.openai.com)
+2. Nas Actions, importe o schema via URL:
+   ```
+   https://apostasesportivaspro.up.railway.app/openapi.json
+   ```
+3. Adicione as instruções do arquivo `gpt-instructions-optimized.md` como System Prompt
+4. Pronto! O GPT busca dados reais automaticamente ✅
 
-1. Crie um Custom GPT no ChatGPT
-2. Adicione o arquivo `CONHECIMENTO_V6_ATUALIZADO.docx` como Knowledge Base
-3. Configure as Actions apontando para sua API Vercel
-4. Use o schema OpenAPI 3.0.0 (incluído na raiz `/`)
+### Fluxo automático do GPT
 
-## 📊 Formato de Análise
+Quando o usuário envia uma lista de jogos, o GPT executa automaticamente:
 
-O sistema gera análises estruturadas incluindo:
+1. `GET /fixtures?date=YYYY-MM-DD` → obtém `mandante_id`, `visitante_id`, `competicao_id`
+2. `GET /analysis/complete?team_home=...&team_away=...&competition=...` → análise completa
+3. Apresenta análise com Must Win Score integrado
 
-- ✅ Contexto atual dos times (posição, forma, estatísticas)
-- ✅ Histórico de confrontos diretos (H2H)
-- ✅ Situação do elenco (lesões e suspensões)
-- ✅ Análise estatística profunda
-- ✅ Odds reais de bookmakers
-- ✅ Validação por IA (API-Sports predictions)
-- ✅ Cálculo de value betting
-- ✅ Gestão de banca (Kelly Criterion)
-- ✅ Níveis de confiança e stakes recomendados
-- ✅ Transparência sobre riscos
+---
+
+## 💡 Exemplos de Uso
+
+```bash
+# Jogos de hoje no Brasileirão
+curl "https://apostasesportivaspro.up.railway.app/fixtures\
+?date=2026-03-04&competition=sr:competition:325"
+
+# Classificação Premier League (temporada detectada automaticamente)
+curl "https://apostasesportivaspro.up.railway.app/standings\
+?competition=sr:competition:17"
+
+# Análise completa de jogo
+curl "https://apostasesportivaspro.up.railway.app/analysis/complete\
+?team_home=sr:competitor:4783\
+&team_away=sr:competitor:4785\
+&competition=sr:competition:325"
+
+# Value Bet: odd 2.5 com probabilidade 45%
+curl "https://apostasesportivaspro.up.railway.app/analysis/value\
+?odd=2.5&probability=0.45"
+
+# Notícias recentes sobre o Flamengo
+curl "https://apostasesportivaspro.up.railway.app/news/context\
+?team=Flamengo&league=Brasileirao&days=5"
+```
+
+---
+
+## 🗂️ Estrutura do Projeto
+
+```
+apostasesportivaspro/
+├── main.py                          # API Flask principal (22 endpoints)
+├── openapi.yaml                     # Schema OpenAPI 3.1.0
+├── requirements.txt                 # Dependências Python
+├── Procfile                         # Gunicorn (Railway/Heroku)
+├── nixpacks.toml                    # Build Railway
+├── railway.json                     # Deploy Railway
+├── vercel.json                      # Deploy Vercel
+├── runtime.txt                      # Python 3.11.x
+├── api/
+│   └── index.py                     # Entry point Vercel serverless
+├── gpt-instructions-optimized.md   # System prompt do GPT (completo)
+├── gpt-instructions-chatgpt.md     # System prompt do GPT (condensado)
+├── CHANGELOG.md                     # Histórico de versões
+└── .gitignore
+```
+
+---
 
 ## ⚠️ Jogo Responsável
 
 Este sistema é para **análise e educação**, não garante resultados.
 
-**Diretrizes:**
 - 🎯 Use apenas para decisões informadas
 - 💰 Nunca aposte mais do que pode perder
-- 📈 Estabeleça e respeite limites
+- 📈 Estabeleça e respeite limites de banca
 - 🚫 Se o jogo deixar de ser diversão, procure ajuda
 
-**Recursos de Ajuda:**
+**Recursos:**
 - [Jogadores Anônimos Brasil](https://www.jogadoresanonimos.com.br/)
-- Ligue 141 (CVV - Apoio emocional)
+- Ligue 141 (CVV — apoio emocional)
 
-## 🔧 Estrutura do Projeto
-
-```
-apostasesportivaspro/
-├── main.py                          # API Flask principal
-├── requirements.txt                 # Dependências Python
-├── vercel.json                      # Configuração Vercel
-├── .gitignore                       # Arquivos ignorados
-├── README.md                        # Este arquivo
-└── CONHECIMENTO_V6_ATUALIZADO.docx  # Knowledge base do GPT
-```
-
-## 📈 Changelog
-
-### v5.0 (Atual) 🎉
-- ✨ **Schema OpenAPI 3.1.0 completo** (`/openapi.json`)
-- ✨ **Endpoint `/leagues`** - Lista todas as ligas suportadas
-- 🔒 **Validações robustas** de parâmetros com ranges e tipos
-- 📋 **Constantes configuráveis** (sem magic numbers)
-- 📚 **Docstrings completas** em todas as funções
-- 🩺 **Health check avançado** com teste de conectividade
-- 🎯 **Mensagens de erro detalhadas** com exemplos
-- ⚡ **Logging estruturado** com timestamps
-- 🔧 **Validação de API_KEY** na inicialização
-- 📊 **Value Bet melhorado** com interpretação e fórmula
-- 🌍 **22 ligas categorizadas** (Brasil, Europa, Internacional)
-- 🐛 Correções de bugs e melhorias de performance
-
-### v3.1.0
-- ✨ Parâmetro `status` em `/fixtures` (FT, NS, LIVE, etc.)
-- ✨ Parâmetro `timezone` em `/fixtures` (padrão: America/Sao_Paulo)
-- 🐛 Validação de `league_name` nas respostas
-- 💬 Mensagens de erro melhoradas
-- 🎯 Tratamento para "nenhum jogo encontrado"
-
-### v3.0.0
-- ✨ Endpoint `/fixtures/headtohead` (H2H)
-- ✨ Endpoint `/injuries` (lesões e suspensões)
-- ✨ Endpoint `/odds` (odds em tempo real)
-- ✨ Endpoint `/predictions` (previsões IA)
-- ✨ Endpoint `/fixtures/live` (jogos ao vivo)
-- 📊 Análises 3x mais completas
-
-### v2.0.0
-- 🔄 Migração de Render.com para Vercel
-- 🔐 Implementação de variáveis de ambiente
-- 🌐 Correção de autenticação API-Sports
-- 📝 Documentação completa
-
-## 🤝 Contribuindo
-
-Contribuições são bem-vindas! Para contribuir:
-
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## 📝 Licença
-
-Este projeto é de código aberto para fins educacionais.
-
-**Importante**: O uso comercial requer:
-- Assinatura paga da API-Sports
-- Conformidade com regulamentações locais de apostas
-- Licenças apropriadas
+---
 
 ## 👤 Autor
 
 **Nelson Soares**
 - GitHub: [@nlsoarez](https://github.com/nlsoarez)
-- Projeto: [apostasesportivaspro](https://github.com/nlsoarez/apostasesportivaspro)
 
-## 🔗 Links Úteis
+## 🔗 Links
 
-- [API-Sports Documentação](https://www.api-football.com/documentation-v3)
-- [Flask Documentação](https://flask.palletsprojects.com/)
-- [Vercel Documentação](https://vercel.com/docs)
-- [OpenAI Custom GPTs](https://platform.openai.com/docs/guides/gpt)
-
-## 💬 Suporte
-
-Encontrou um bug ou tem uma sugestão?
-
-1. Verifique se já existe uma [issue](https://github.com/nlsoarez/apostasesportivaspro/issues)
-2. Se não, crie uma nova issue com detalhes
-3. Para dúvidas, use as [Discussions](https://github.com/nlsoarez/apostasesportivaspro/discussions)
+- [API em produção](https://apostasesportivaspro.up.railway.app)
+- [Schema OpenAPI](https://apostasesportivaspro.up.railway.app/openapi.json)
+- [Sportradar Developer](https://developer.sportradar.com/)
+- [Flask Docs](https://flask.palletsprojects.com/)
 
 ---
-
-⭐ Se este projeto foi útil, considere dar uma estrela no GitHub!
 
 **Desenvolvido com ⚽ para análise profissional de apostas esportivas**
