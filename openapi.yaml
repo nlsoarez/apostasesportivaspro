@@ -183,6 +183,38 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  total:
+                    type: integer
+                    example: 20
+                  competitions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "sr:competition:325"
+                        name:
+                          type: string
+                          example: "Brasileirao Serie A"
+                  categories:
+                    type: object
+                    properties:
+                      brasil:
+                        type: array
+                        items:
+                          type: string
+                      europa:
+                        type: array
+                        items:
+                          type: string
+                  nota:
+                    type: string
+                    example: "Use o 'id' como parâmetro 'competition' nos outros endpoints"
 
   /seasons:
     get:
