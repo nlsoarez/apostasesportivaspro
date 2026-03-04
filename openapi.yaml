@@ -34,8 +34,8 @@ info:
     url: https://github.com/nlsoarez/apostasesportivaspro
 
 servers:
-  - url: https://apostasesportivaspro.up.railway.app
-    description: Servidor de Produção (Railway)
+  - url: https://apostasesportivas.vercel.app
+    description: Servidor de Produção (Vercel)
 
 tags:
   - name: health
