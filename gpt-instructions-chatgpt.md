@@ -54,6 +54,8 @@ Score 0-10 indicando pressão por resultado:
 - `/odds` - Cotações (fixture)
 - `/predictions` - Previsões IA (fixture)
 - `/injuries` - Lesões (league, team)
+- `/news/context` - Notícias recentes (team, league, days [1-30])
+- `/players/topscorers` - Artilheiros (competition URN ex: sr:competition:325)
 
 **IDs principais:**
 - Brasileirão = 71 | Premier = 39 | La Liga = 140
