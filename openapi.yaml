@@ -280,11 +280,13 @@ paths:
 
   /fixtures:
     get:
-      summary: Lista jogos por data
+      summary: Lista jogos por data — PRIMEIRO PASSO OBRIGATÓRIO
       description: |
-        Busca jogos de um dia específico via Sportradar.
-        Opcionalmente filtra por competição.
-        Retorna placar para jogos finalizados e status ao vivo para jogos em andamento.
+        SEMPRE invoke esta action PRIMEIRO antes de qualquer análise de jogo.
+        Retorna os jogos do dia com os URNs reais (mandante_id, visitante_id, competicao_id)
+        necessários para chamar getAnalysisComplete.
+        Se o usuário pedir análise de jogos, times ou partidas: chame getFixtures IMEDIATAMENTE
+        com a data de hoje para obter os IDs antes de fazer qualquer outra chamada.
       operationId: getFixtures
       tags:
         - fixtures
@@ -1403,10 +1405,14 @@ paths:
 
   /analysis/complete:
     get:
-      summary: Análise Completa de um Jogo
+      summary: Análise Completa de um Jogo — SEGUNDO PASSO OBRIGATÓRIO
       description: |
-        Consolida standings, H2H, Must Win e probabilidades em uma única resposta.
-        Economiza chamadas manuais a múltiplos endpoints.
+        Invoke esta action para CADA jogo que o usuário pediu análise, usando os URNs
+        obtidos via getFixtures. Retorna tudo: classificação, H2H, Must Win, escanteios,
+        cartões, lesões, previsões e value bets em uma única chamada.
+        Use os campos mandante_id → team_home, visitante_id → team_away,
+        competicao_id → competition da resposta de getFixtures.
+        NUNCA informe o parâmetro season — a API detecta automaticamente.
 
         **Atenção:** Faz até 4 chamadas à Sportradar internamente (respeite o rate limit).
       operationId: getAnalysisComplete
