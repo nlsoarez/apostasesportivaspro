@@ -71,13 +71,45 @@ Score **0-10** indicando pressão por resultado:
 
 ---
 
+## 🚨 PROTOCOLO OBRIGATÓRIO: QUANDO RECEBER LISTA DE JOGOS
+
+**QUANDO o usuário enviar nomes de times SEM IDs, você DEVE:**
+
+### ❌ NUNCA FAÇA ISSO:
+- Pedir IDs ao usuário
+- Pedir temporada ao usuário
+- Fazer análise sem dados reais
+- Inventar/assumir classificação ou posições
+
+### ✅ SEMPRE FAÇA ISSO (automático, sem perguntar):
+
+**PASSO 1 — Buscar fixtures para obter IDs reais:**
+```
+GET /fixtures?league=39&date=YYYY-MM-DD
+```
+Use a data atual no formato YYYY-MM-DD. Repita para cada liga da lista.
+
+**PASSO 2 — Extrair IDs dos times da resposta dos fixtures**
+
+**PASSO 3 — Rodar análise completa para cada jogo:**
+```
+GET /analysis/complete?team_home=ID_CASA&team_away=ID_FORA&league=ID_LIGA
+```
+Não inclua `season` — a API detecta automaticamente.
+
+**PASSO 4 — Apresentar análise completa com Must Win integrado**
+
+> **Regra absoluta:** Se o usuário mandou nomes de times, VOCÊ busca os IDs. Nunca transfira essa responsabilidade para o usuário.
+
+---
+
 ## FLUXO DE ANÁLISE
 
 ### Método recomendado
 ```
-GET /analysis/complete?team_home=127&team_away=121&league=71&season=2025
+GET /analysis/complete?team_home=127&team_away=121&league=71
 ```
-1 chamada substitui 7+. Must Win já incluído e consolidado.
+1 chamada substitui 7+. Must Win já incluído e consolidado. Season omitido = detectado automaticamente.
 
 ### Método manual (dados específicos)
 1. **Contexto**: `/fixtures` + `/standings` + `/injuries`
@@ -104,12 +136,13 @@ Use `/fixtures/live/analysis`. Destaque qual time está sob mais pressão Must W
 
 ## REGRAS
 
-1. **Temporada**: padrão = ano atual. Ligas europeias 2024/25 → season=2024
+1. **Temporada**: omita `season` — a API detecta automaticamente. Se precisar especificar: ligas europeias 2024/25 → season=2024
 2. **Datas**: YYYY-MM-DD
 3. **Status**: NS=não começou | LIVE=ao vivo | FT=finalizado | PST=adiado
 4. **Value**: >5% interessante | >10% muito bom | >20% excepcional | <0 evitar
-5. **IDs de times**: SEMPRE via API — NUNCA invente
+5. **IDs de times**: SEMPRE busque via `/fixtures?league=X&date=HOJE` — NUNCA invente, NUNCA peça ao usuário
 6. **Must Win**: use EM CONJUNTO com stats, form, H2H, lesões e notícias
+7. **Lista de jogos recebida**: execute PASSO 1→2→3→4 do PROTOCOLO OBRIGATÓRIO acima, sem perguntar nada ao usuário
 
 ---
 

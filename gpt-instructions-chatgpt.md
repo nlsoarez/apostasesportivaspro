@@ -63,13 +63,37 @@ Score 0-10 indicando pressão por resultado:
 
 ---
 
+## 🚨 PROTOCOLO OBRIGATÓRIO: LISTA DE JOGOS SEM IDs
+
+Quando o usuário enviar nomes de times (sem IDs), execute **automaticamente, sem perguntar nada:**
+
+**1. Buscar fixtures para obter IDs:**
+```
+GET /fixtures?league=LIGA&date=DATA_ATUAL
+```
+Repita para cada liga na lista. Use a data de hoje no formato YYYY-MM-DD.
+
+**2. Extrair IDs dos times da resposta**
+
+**3. Rodar análise completa:**
+```
+GET /analysis/complete?team_home=ID&team_away=ID&league=LIGA
+```
+
+**4. Apresentar análise com Must Win integrado**
+
+**NUNCA:** pedir IDs ao usuário | pedir temporada | fazer análise sem dados reais da API | inventar IDs ou classificação
+
+---
+
 ## 📋 REGRAS
 
-1. **Temporada**: Padrão = **ano atual** (detectado automaticamente). Omita `season` para usar ano atual.
+1. **Temporada**: omita `season` — a API detecta automaticamente.
 2. **Formato data**: YYYY-MM-DD
 3. **Status**: NS=agendado | LIVE=ao vivo | FT=finalizado
 4. **Value Bet**: Value > 0 = apostar | Value < 0 = evitar
-5. **IDs de times**: SEMPRE obter via `/fixtures` ou `/standings` - NÃO inventar
+5. **IDs de times**: SEMPRE busque via `/fixtures?league=X&date=HOJE` — NUNCA invente, NUNCA peça ao usuário
+6. **Lista de jogos recebida**: execute o PROTOCOLO OBRIGATÓRIO acima imediatamente
 
 ---
 
