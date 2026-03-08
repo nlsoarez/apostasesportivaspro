@@ -630,13 +630,15 @@ def fixtures():
     if not date:
         date = datetime.now().strftime("%Y-%m-%d")
 
-    data, error = call_sportradar(f"/schedules/{date}/summaries.json")
+    # schedule.json inclui TODOS os jogos do dia (futuros, ao vivo e finalizados)
+    # summaries.json só retorna jogos já finalizados — usar como fallback
+    data, error = call_sportradar(f"/schedules/{date}/schedule.json")
+    use_schedule_fallback = True
 
-    # Fallback para schedule.json se summaries.json retornar 403
-    use_schedule_fallback = error and "403" in str(error)
-    if use_schedule_fallback:
-        logger.warning(f"[FIXTURES] summaries.json retornou 403, tentando schedule.json como fallback")
-        data, error = call_sportradar(f"/schedules/{date}/schedule.json")
+    if error:
+        logger.warning(f"[FIXTURES] schedule.json falhou ({error}), tentando summaries.json como fallback")
+        data, error = call_sportradar(f"/schedules/{date}/summaries.json")
+        use_schedule_fallback = False
 
     if error:
         return error_response(error, 500)
