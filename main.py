@@ -799,6 +799,63 @@ def standings():
     })
 
 
+@app.route("/search/teams")
+def search_teams():
+    """
+    Busca times por nome em uma competição e retorna seus URNs.
+    Útil quando o jogo não aparece em /fixtures mas o usuário pediu análise pelo nome do time.
+
+    Query Parameters:
+        - name (required): Nome do time (parcial ou completo, ex: "Barcelona", "Real Madrid")
+        - competition (required): URN da competição (ex: sr:competition:8)
+        - season: URN da temporada (auto-detecta se omitido)
+    """
+    name = request.args.get("name", "").strip().lower()
+    competition = request.args.get("competition")
+    season_urn = request.args.get("season")
+
+    if not name or not competition:
+        return error_response("Parametros 'name' e 'competition' sao obrigatorios")
+
+    if not season_urn:
+        season_urn, error = _get_current_season_urn(competition)
+        if error:
+            return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
+
+    data, error = call_sportradar(
+        f"/competitions/{competition}/seasons/{season_urn}/standings.json"
+    )
+    if error:
+        return error_response(error, 500)
+
+    matches = []
+    for standing in data.get("standings", []):
+        if standing.get("type") != "total":
+            continue
+        for group in standing.get("groups", []):
+            for entry in group.get("standings", []):
+                team = entry.get("team", {})
+                team_name = team.get("name", "")
+                if name in team_name.lower() or team_name.lower() in name:
+                    matches.append({
+                        "time": team_name,
+                        "time_id": team.get("id"),
+                        "posicao": entry.get("rank"),
+                        "pontos": entry.get("points", 0),
+                        "competicao_id": competition,
+                        "season_id": season_urn
+                    })
+
+    return jsonify({
+        "ok": True,
+        "query": name,
+        "competition": competition,
+        "season": season_urn,
+        "total": len(matches),
+        "times": matches
+    })
+
+
 @app.route("/teams/statistics")
 def team_statistics():
     """
