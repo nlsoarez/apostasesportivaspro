@@ -733,6 +733,75 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /search/teams:
+    get:
+      summary: Busca times por nome em uma competição
+      description: "Use quando o jogo não aparecer em getFixtures. Informe o nome do time e a competição para obter o time_id (URN) necessário para chamar getAnalysisComplete."
+      operationId: searchTeams
+      tags:
+        - search
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: Nome parcial ou completo do time (ex. Barcelona, Real Madrid)
+          schema:
+            type: string
+            example: "Barcelona"
+        - name: competition
+          in: query
+          required: true
+          description: URN da competição (ex. sr:competition:8 para La Liga)
+          schema:
+            type: string
+            example: "sr:competition:8"
+        - name: season
+          in: query
+          required: false
+          description: URN da temporada (auto-detecta se omitido)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Times encontrados com seus URNs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  query:
+                    type: string
+                  competition:
+                    type: string
+                  season:
+                    type: string
+                  total:
+                    type: integer
+                  times:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        time:
+                          type: string
+                        time_id:
+                          type: string
+                          description: URN do time para usar em getAnalysisComplete
+                        posicao:
+                          type: integer
+                        pontos:
+                          type: integer
+                        competicao_id:
+                          type: string
+                        season_id:
+                          type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /standings:
     get:
       summary: Classificação da competição
