@@ -47,7 +47,7 @@ MAX_PROBABILITY = 1.0
 
 # Sportradar API
 API_KEY = os.getenv("API_KEY")
-SPORTRADAR_BASE_URL = "https://api.sportradar.com/soccer/trial/v4/en"
+SPORTRADAR_BASE_URL = os.getenv("SPORTRADAR_BASE_URL", "https://api.sportradar.com/soccer/trial/v4/en")
 API_TIMEOUT = float(os.getenv("API_TIMEOUT", "15"))
 API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "3"))
 API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "1.2"))  # Sportradar trial: 1 req/sec
