@@ -47,7 +47,7 @@ MAX_PROBABILITY = 1.0
 
 # Sportradar API
 API_KEY = os.getenv("API_KEY")
-SPORTRADAR_BASE_URL = "https://api.sportradar.com/soccer/trial/v4/en"
+SPORTRADAR_BASE_URL = os.getenv("SPORTRADAR_BASE_URL", "https://api.sportradar.com/soccer/trial/v4/en")
 API_TIMEOUT = float(os.getenv("API_TIMEOUT", "15"))
 API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "3"))
 API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "1.2"))  # Sportradar trial: 1 req/sec
@@ -143,12 +143,14 @@ def call_sportradar(path, params=None, max_retries=None):
                 return response.json(), None
 
             elif response.status_code == 401:
-                logger.error(f"[Sportradar] Chave invalida (401) -> {path}")
-                return None, "API_KEY invalida ou expirada. Verifique sua chave no portal Sportradar."
+                body = response.text[:300] if response.text else "(sem corpo)"
+                logger.error(f"[Sportradar] Chave invalida (401) -> {path} | body: {body}")
+                return None, f"API_KEY invalida ou expirada (401). Verifique sua chave no portal Sportradar. Detalhe: {body}"
 
             elif response.status_code == 403:
-                logger.error(f"[Sportradar] Sem permissao (403) -> {path}")
-                return None, "Sem permissao para este endpoint. Verifique os pacotes do seu plano Sportradar."
+                body = response.text[:300] if response.text else "(sem corpo)"
+                logger.error(f"[Sportradar] Sem permissao (403) -> {path} | body: {body}")
+                return None, f"Sem permissao para este endpoint (403): {path}. Detalhe Sportradar: {body}"
 
             elif response.status_code == 404:
                 logger.warning(f"[Sportradar] Nao encontrado (404) -> {path}")
@@ -457,6 +459,50 @@ def health():
     return jsonify(status)
 
 
+@app.route("/debug/test-api")
+def debug_test_api():
+    """
+    Testa quais endpoints Sportradar estão acessíveis com a API key atual.
+    Útil para diagnosticar problemas de permissão 403.
+    """
+    if not API_KEY:
+        return jsonify({"ok": False, "error": "API_KEY nao configurada"}), 500
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    test_endpoints = [
+        "/competitions.json",
+        f"/schedules/{today}/schedule.json",
+        f"/schedules/{today}/summaries.json",
+        "/schedules/live/summaries.json",
+    ]
+
+    results = {}
+    base_url = SPORTRADAR_BASE_URL
+
+    for ep in test_endpoints:
+        try:
+            _rate_limit()
+            url = f"{base_url}{ep}"
+            resp = requests.get(url, params={"api_key": API_KEY}, timeout=10)
+            body_preview = resp.text[:200] if resp.text else ""
+            results[ep] = {
+                "status_code": resp.status_code,
+                "ok": resp.status_code == 200,
+                "body_preview": body_preview
+            }
+        except Exception as e:
+            results[ep] = {"status_code": None, "ok": False, "error": str(e)}
+
+    any_ok = any(v["ok"] for v in results.values())
+    return jsonify({
+        "ok": any_ok,
+        "api_key_configured": bool(API_KEY),
+        "api_key_prefix": API_KEY[:8] + "..." if API_KEY else None,
+        "base_url": base_url,
+        "endpoints_tested": results
+    })
+
+
 @app.route("/openapi.json")
 def openapi_json():
     try:
@@ -585,60 +631,108 @@ def fixtures():
         date = datetime.now().strftime("%Y-%m-%d")
 
     data, error = call_sportradar(f"/schedules/{date}/summaries.json")
+
+    # Fallback para schedule.json se summaries.json retornar 403
+    use_schedule_fallback = error and "403" in str(error)
+    if use_schedule_fallback:
+        logger.warning(f"[FIXTURES] summaries.json retornou 403, tentando schedule.json como fallback")
+        data, error = call_sportradar(f"/schedules/{date}/schedule.json")
+
     if error:
         return error_response(error, 500)
 
-    summaries = data.get("summaries", [])
     jogos = []
 
-    for summary in summaries:
-        sport_event = summary.get("sport_event", {})
-        status_obj = summary.get("sport_event_status", {})
+    if use_schedule_fallback:
+        # schedule.json: {"schedule": [{sport_event direto com competitors, status, etc}]}
+        events = data.get("schedule", data.get("sport_events", []))
+        for sport_event in events:
+            ctx = sport_event.get("sport_event_context", {})
+            comp = ctx.get("competition", {})
+            comp_id = comp.get("id", "")
+            if competition_filter and comp_id != competition_filter:
+                continue
 
-        # Filtrar por competição se solicitado
-        ctx = sport_event.get("sport_event_context", {})
-        comp = ctx.get("competition", {})
-        comp_id = comp.get("id", "")
-        if competition_filter and comp_id != competition_filter:
-            continue
+            competitors = sport_event.get("competitors", [])
+            home_name = away_name = None
+            home_id = away_id = None
 
-        competitors = sport_event.get("competitors", [])
-        home_name = away_name = None
-        home_id = away_id = None
-        home_score = away_score = None
+            for c in competitors:
+                q = c.get("qualifier", "")
+                if q == "home":
+                    home_name = c.get("name")
+                    home_id = c.get("id")
+                elif q == "away":
+                    away_name = c.get("name")
+                    away_id = c.get("id")
 
-        for c in competitors:
-            q = c.get("qualifier", "")
-            if q == "home":
-                home_name = c.get("name")
-                home_id = c.get("id")
-            elif q == "away":
-                away_name = c.get("name")
-                away_id = c.get("id")
+            status_str = sport_event.get("status", "")
+            home_score = sport_event.get("home_score")
+            away_score = sport_event.get("away_score")
 
-        status_str = status_obj.get("status", "")
-        home_score = status_obj.get("home_score")
-        away_score = status_obj.get("away_score")
-        match_time = status_obj.get("clock", {}).get("match_time") if status_str == "live" else None
+            jogos.append({
+                "id": sport_event.get("id"),
+                "data": sport_event.get("scheduled"),
+                "status": _parse_status_sportradar(status_str),
+                "minuto": None,
+                "competicao": comp.get("name"),
+                "competicao_id": comp_id,
+                "mandante": home_name,
+                "mandante_id": home_id,
+                "visitante": away_name,
+                "visitante_id": away_id,
+                "placar": f"{home_score}x{away_score}" if home_score is not None else None
+            })
+    else:
+        # summaries.json: {"summaries": [{"sport_event": {...}, "sport_event_status": {...}}]}
+        summaries = data.get("summaries", [])
+        for summary in summaries:
+            sport_event = summary.get("sport_event", {})
+            status_obj = summary.get("sport_event_status", {})
 
-        jogos.append({
-            "id": sport_event.get("id"),
-            "data": sport_event.get("scheduled"),
-            "status": _parse_status_sportradar(status_str),
-            "minuto": match_time,
-            "competicao": comp.get("name"),
-            "competicao_id": comp_id,
-            "mandante": home_name,
-            "mandante_id": home_id,
-            "visitante": away_name,
-            "visitante_id": away_id,
-            "placar": f"{home_score}x{away_score}" if home_score is not None else None
-        })
+            ctx = sport_event.get("sport_event_context", {})
+            comp = ctx.get("competition", {})
+            comp_id = comp.get("id", "")
+            if competition_filter and comp_id != competition_filter:
+                continue
+
+            competitors = sport_event.get("competitors", [])
+            home_name = away_name = None
+            home_id = away_id = None
+
+            for c in competitors:
+                q = c.get("qualifier", "")
+                if q == "home":
+                    home_name = c.get("name")
+                    home_id = c.get("id")
+                elif q == "away":
+                    away_name = c.get("name")
+                    away_id = c.get("id")
+
+            status_str = status_obj.get("status", "")
+            home_score = status_obj.get("home_score")
+            away_score = status_obj.get("away_score")
+            match_time = status_obj.get("clock", {}).get("match_time") if status_str == "live" else None
+
+            jogos.append({
+                "id": sport_event.get("id"),
+                "data": sport_event.get("scheduled"),
+                "status": _parse_status_sportradar(status_str),
+                "minuto": match_time,
+                "competicao": comp.get("name"),
+                "competicao_id": comp_id,
+                "mandante": home_name,
+                "mandante_id": home_id,
+                "visitante": away_name,
+                "visitante_id": away_id,
+                "placar": f"{home_score}x{away_score}" if home_score is not None else None
+            })
 
     return jsonify({
         "ok": True,
         "date": date,
         "total": len(jogos),
+        "source": "schedule" if use_schedule_fallback else "summaries",
         "jogos": jogos
     })
 
