@@ -105,6 +105,167 @@ SUPPORTED_COMPETITIONS = {
     "sr:competition:133": "Copa America"
 }
 
+# Mapeamento estático de times europeus → URN Sportradar
+# Usado como fallback quando a API trial não tem acesso aos endpoints de temporada
+TEAMS_STATIC_LOOKUP = {
+    # ── La Liga (sr:competition:8) ──────────────────────────────────────────
+    "real madrid":              {"id": "sr:competitor:2829", "name": "Real Madrid CF",           "competition": "sr:competition:8"},
+    "barcelona":                {"id": "sr:competitor:2817", "name": "FC Barcelona",             "competition": "sr:competition:8"},
+    "fc barcelona":             {"id": "sr:competitor:2817", "name": "FC Barcelona",             "competition": "sr:competition:8"},
+    "atletico madrid":          {"id": "sr:competitor:2836", "name": "Club Atletico de Madrid",  "competition": "sr:competition:8"},
+    "atlético madrid":          {"id": "sr:competitor:2836", "name": "Club Atletico de Madrid",  "competition": "sr:competition:8"},
+    "atletico de madrid":       {"id": "sr:competitor:2836", "name": "Club Atletico de Madrid",  "competition": "sr:competition:8"},
+    "athletic club":            {"id": "sr:competitor:2818", "name": "Athletic Club",            "competition": "sr:competition:8"},
+    "athletic bilbao":          {"id": "sr:competitor:2818", "name": "Athletic Club",            "competition": "sr:competition:8"},
+    "real sociedad":            {"id": "sr:competitor:2820", "name": "Real Sociedad",            "competition": "sr:competition:8"},
+    "real betis":               {"id": "sr:competitor:6900", "name": "Real Betis Balompie",      "competition": "sr:competition:8"},
+    "villarreal":               {"id": "sr:competitor:2825", "name": "Villarreal CF",            "competition": "sr:competition:8"},
+    "valencia":                 {"id": "sr:competitor:2832", "name": "Valencia CF",              "competition": "sr:competition:8"},
+    "sevilla":                  {"id": "sr:competitor:2833", "name": "Sevilla FC",               "competition": "sr:competition:8"},
+    "osasuna":                  {"id": "sr:competitor:2819", "name": "CA Osasuna",               "competition": "sr:competition:8"},
+    "celta vigo":               {"id": "sr:competitor:2822", "name": "RC Celta de Vigo",         "competition": "sr:competition:8"},
+    "celta":                    {"id": "sr:competitor:2822", "name": "RC Celta de Vigo",         "competition": "sr:competition:8"},
+    "getafe":                   {"id": "sr:competitor:2824", "name": "Getafe CF",                "competition": "sr:competition:8"},
+    "rayo vallecano":           {"id": "sr:competitor:2834", "name": "Rayo Vallecano",           "competition": "sr:competition:8"},
+    "girona":                   {"id": "sr:competitor:3153", "name": "Girona FC",                "competition": "sr:competition:8"},
+    "mallorca":                 {"id": "sr:competitor:2823", "name": "RCD Mallorca",             "competition": "sr:competition:8"},
+    "las palmas":               {"id": "sr:competitor:5820", "name": "UD Las Palmas",            "competition": "sr:competition:8"},
+    "alaves":                   {"id": "sr:competitor:2826", "name": "Deportivo Alaves",         "competition": "sr:competition:8"},
+    "alavés":                   {"id": "sr:competitor:2826", "name": "Deportivo Alaves",         "competition": "sr:competition:8"},
+    "espanyol":                 {"id": "sr:competitor:2821", "name": "RCD Espanyol",             "competition": "sr:competition:8"},
+    "leganes":                  {"id": "sr:competitor:5964", "name": "CD Leganes",               "competition": "sr:competition:8"},
+    "leganés":                  {"id": "sr:competitor:5964", "name": "CD Leganes",               "competition": "sr:competition:8"},
+    "valladolid":               {"id": "sr:competitor:5819", "name": "Real Valladolid CF",       "competition": "sr:competition:8"},
+    # ── Bundesliga (sr:competition:35) ─────────────────────────────────────
+    "bayern":                   {"id": "sr:competitor:2841", "name": "FC Bayern Munchen",        "competition": "sr:competition:35"},
+    "bayern munich":            {"id": "sr:competitor:2841", "name": "FC Bayern Munchen",        "competition": "sr:competition:35"},
+    "bayern münchen":           {"id": "sr:competitor:2841", "name": "FC Bayern Munchen",        "competition": "sr:competition:35"},
+    "borussia dortmund":        {"id": "sr:competitor:2838", "name": "Borussia Dortmund",        "competition": "sr:competition:35"},
+    "dortmund":                 {"id": "sr:competitor:2838", "name": "Borussia Dortmund",        "competition": "sr:competition:35"},
+    "bayer leverkusen":         {"id": "sr:competitor:2847", "name": "Bayer 04 Leverkusen",      "competition": "sr:competition:35"},
+    "leverkusen":               {"id": "sr:competitor:2847", "name": "Bayer 04 Leverkusen",      "competition": "sr:competition:35"},
+    "rb leipzig":               {"id": "sr:competitor:42406","name": "RB Leipzig",               "competition": "sr:competition:35"},
+    "leipzig":                  {"id": "sr:competitor:42406","name": "RB Leipzig",               "competition": "sr:competition:35"},
+    "eintracht frankfurt":      {"id": "sr:competitor:2851", "name": "Eintracht Frankfurt",      "competition": "sr:competition:35"},
+    "frankfurt":                {"id": "sr:competitor:2851", "name": "Eintracht Frankfurt",      "competition": "sr:competition:35"},
+    "vfb stuttgart":            {"id": "sr:competitor:2846", "name": "VfB Stuttgart",            "competition": "sr:competition:35"},
+    "stuttgart":                {"id": "sr:competitor:2846", "name": "VfB Stuttgart",            "competition": "sr:competition:35"},
+    "sc freiburg":              {"id": "sr:competitor:2852", "name": "SC Freiburg",              "competition": "sr:competition:35"},
+    "freiburg":                 {"id": "sr:competitor:2852", "name": "SC Freiburg",              "competition": "sr:competition:35"},
+    "hoffenheim":               {"id": "sr:competitor:5985", "name": "TSG 1899 Hoffenheim",      "competition": "sr:competition:35"},
+    "werder bremen":            {"id": "sr:competitor:2843", "name": "Werder Bremen",            "competition": "sr:competition:35"},
+    "bremen":                   {"id": "sr:competitor:2843", "name": "Werder Bremen",            "competition": "sr:competition:35"},
+    "wolfsburg":                {"id": "sr:competitor:2849", "name": "VfL Wolfsburg",            "competition": "sr:competition:35"},
+    "borussia monchengladbach": {"id": "sr:competitor:2844", "name": "Borussia Monchengladbach", "competition": "sr:competition:35"},
+    "gladbach":                 {"id": "sr:competitor:2844", "name": "Borussia Monchengladbach", "competition": "sr:competition:35"},
+    "union berlin":             {"id": "sr:competitor:40658","name": "1. FC Union Berlin",       "competition": "sr:competition:35"},
+    "mainz":                    {"id": "sr:competitor:2850", "name": "1. FSV Mainz 05",          "competition": "sr:competition:35"},
+    "augsburg":                 {"id": "sr:competitor:3025", "name": "FC Augsburg",              "competition": "sr:competition:35"},
+    "heidenheim":               {"id": "sr:competitor:6717", "name": "1. FC Heidenheim",         "competition": "sr:competition:35"},
+    "bochum":                   {"id": "sr:competitor:3424", "name": "VfL Bochum",               "competition": "sr:competition:35"},
+    # ── Serie A (sr:competition:23) ────────────────────────────────────────
+    "juventus":                 {"id": "sr:competitor:2839", "name": "Juventus FC",              "competition": "sr:competition:23"},
+    "inter":                    {"id": "sr:competitor:2840", "name": "FC Internazionale Milano", "competition": "sr:competition:23"},
+    "inter milan":              {"id": "sr:competitor:2840", "name": "FC Internazionale Milano", "competition": "sr:competition:23"},
+    "internazionale":           {"id": "sr:competitor:2840", "name": "FC Internazionale Milano", "competition": "sr:competition:23"},
+    "ac milan":                 {"id": "sr:competitor:2848", "name": "AC Milan",                 "competition": "sr:competition:23"},
+    "milan":                    {"id": "sr:competitor:2848", "name": "AC Milan",                 "competition": "sr:competition:23"},
+    "napoli":                   {"id": "sr:competitor:2853", "name": "SSC Napoli",               "competition": "sr:competition:23"},
+    "roma":                     {"id": "sr:competitor:2854", "name": "AS Roma",                  "competition": "sr:competition:23"},
+    "as roma":                  {"id": "sr:competitor:2854", "name": "AS Roma",                  "competition": "sr:competition:23"},
+    "lazio":                    {"id": "sr:competitor:2855", "name": "SS Lazio",                 "competition": "sr:competition:23"},
+    "atalanta":                 {"id": "sr:competitor:2856", "name": "Atalanta BC",              "competition": "sr:competition:23"},
+    "fiorentina":               {"id": "sr:competitor:2857", "name": "ACF Fiorentina",           "competition": "sr:competition:23"},
+    "torino":                   {"id": "sr:competitor:2858", "name": "Torino FC",                "competition": "sr:competition:23"},
+    "bologna":                  {"id": "sr:competitor:2859", "name": "Bologna FC",               "competition": "sr:competition:23"},
+    "udinese":                  {"id": "sr:competitor:2861", "name": "Udinese Calcio",           "competition": "sr:competition:23"},
+    "genoa":                    {"id": "sr:competitor:2862", "name": "Genoa CFC",                "competition": "sr:competition:23"},
+    "sassuolo":                 {"id": "sr:competitor:2863", "name": "US Sassuolo",              "competition": "sr:competition:23"},
+    "cagliari":                 {"id": "sr:competitor:2864", "name": "Cagliari Calcio",          "competition": "sr:competition:23"},
+    "hellas verona":            {"id": "sr:competitor:2865", "name": "Hellas Verona",            "competition": "sr:competition:23"},
+    "verona":                   {"id": "sr:competitor:2865", "name": "Hellas Verona",            "competition": "sr:competition:23"},
+    "lecce":                    {"id": "sr:competitor:5815", "name": "US Lecce",                 "competition": "sr:competition:23"},
+    "empoli":                   {"id": "sr:competitor:5981", "name": "Empoli FC",                "competition": "sr:competition:23"},
+    "monza":                    {"id": "sr:competitor:5816", "name": "AC Monza",                 "competition": "sr:competition:23"},
+    "parma":                    {"id": "sr:competitor:2870", "name": "Parma Calcio 1913",        "competition": "sr:competition:23"},
+    "venezia":                  {"id": "sr:competitor:5817", "name": "Venezia FC",               "competition": "sr:competition:23"},
+    "como":                     {"id": "sr:competitor:5818", "name": "Como 1907",                "competition": "sr:competition:23"},
+    # ── Ligue 1 (sr:competition:34) ────────────────────────────────────────
+    "psg":                      {"id": "sr:competitor:2860", "name": "Paris Saint-Germain",      "competition": "sr:competition:34"},
+    "paris saint-germain":      {"id": "sr:competitor:2860", "name": "Paris Saint-Germain",      "competition": "sr:competition:34"},
+    "paris sg":                 {"id": "sr:competitor:2860", "name": "Paris Saint-Germain",      "competition": "sr:competition:34"},
+    "marseille":                {"id": "sr:competitor:2871", "name": "Olympique de Marseille",   "competition": "sr:competition:34"},
+    "olympique marseille":      {"id": "sr:competitor:2871", "name": "Olympique de Marseille",   "competition": "sr:competition:34"},
+    "lyon":                     {"id": "sr:competitor:2872", "name": "Olympique Lyonnais",       "competition": "sr:competition:34"},
+    "olympique lyonnais":       {"id": "sr:competitor:2872", "name": "Olympique Lyonnais",       "competition": "sr:competition:34"},
+    "monaco":                   {"id": "sr:competitor:2873", "name": "AS Monaco FC",             "competition": "sr:competition:34"},
+    "as monaco":                {"id": "sr:competitor:2873", "name": "AS Monaco FC",             "competition": "sr:competition:34"},
+    "lille":                    {"id": "sr:competitor:2874", "name": "LOSC Lille",               "competition": "sr:competition:34"},
+    "nice":                     {"id": "sr:competitor:2875", "name": "OGC Nice",                 "competition": "sr:competition:34"},
+    "ogc nice":                 {"id": "sr:competitor:2875", "name": "OGC Nice",                 "competition": "sr:competition:34"},
+    "rennes":                   {"id": "sr:competitor:2876", "name": "Stade Rennais FC",         "competition": "sr:competition:34"},
+    "lens":                     {"id": "sr:competitor:2877", "name": "RC Lens",                  "competition": "sr:competition:34"},
+    "rc lens":                  {"id": "sr:competitor:2877", "name": "RC Lens",                  "competition": "sr:competition:34"},
+    "strasbourg":               {"id": "sr:competitor:2878", "name": "RC Strasbourg Alsace",     "competition": "sr:competition:34"},
+    "nantes":                   {"id": "sr:competitor:2879", "name": "FC Nantes",                "competition": "sr:competition:34"},
+    "montpellier":              {"id": "sr:competitor:2880", "name": "Montpellier HSC",          "competition": "sr:competition:34"},
+    "reims":                    {"id": "sr:competitor:5986", "name": "Stade de Reims",           "competition": "sr:competition:34"},
+    "toulouse":                 {"id": "sr:competitor:5987", "name": "Toulouse FC",              "competition": "sr:competition:34"},
+    "brest":                    {"id": "sr:competitor:2881", "name": "Stade Brestois 29",        "competition": "sr:competition:34"},
+    "le havre":                 {"id": "sr:competitor:5988", "name": "Le Havre AC",              "competition": "sr:competition:34"},
+    "angers":                   {"id": "sr:competitor:2882", "name": "SCO Angers",               "competition": "sr:competition:34"},
+    "saint-etienne":            {"id": "sr:competitor:2883", "name": "AS Saint-Etienne",         "competition": "sr:competition:34"},
+    "auxerre":                  {"id": "sr:competitor:2884", "name": "AJ Auxerre",               "competition": "sr:competition:34"},
+    # ── Primeira Liga (sr:competition:238) ─────────────────────────────────
+    "benfica":                  {"id": "sr:competitor:3943", "name": "SL Benfica",               "competition": "sr:competition:238"},
+    "sl benfica":               {"id": "sr:competitor:3943", "name": "SL Benfica",               "competition": "sr:competition:238"},
+    "porto":                    {"id": "sr:competitor:3950", "name": "FC Porto",                 "competition": "sr:competition:238"},
+    "fc porto":                 {"id": "sr:competitor:3950", "name": "FC Porto",                 "competition": "sr:competition:238"},
+    "sporting cp":              {"id": "sr:competitor:3945", "name": "Sporting CP",              "competition": "sr:competition:238"},
+    "sporting":                 {"id": "sr:competitor:3945", "name": "Sporting CP",              "competition": "sr:competition:238"},
+    "braga":                    {"id": "sr:competitor:3948", "name": "SC Braga",                 "competition": "sr:competition:238"},
+    "sc braga":                 {"id": "sr:competitor:3948", "name": "SC Braga",                 "competition": "sr:competition:238"},
+    "vitoria guimaraes":        {"id": "sr:competitor:3946", "name": "Vitoria SC",               "competition": "sr:competition:238"},
+    "guimaraes":                {"id": "sr:competitor:3946", "name": "Vitoria SC",               "competition": "sr:competition:238"},
+    "boavista":                 {"id": "sr:competitor:3949", "name": "Boavista FC",              "competition": "sr:competition:238"},
+    "casa pia":                 {"id": "sr:competitor:6118", "name": "Casa Pia AC",              "competition": "sr:competition:238"},
+    "moreirense":               {"id": "sr:competitor:3951", "name": "Moreirense FC",            "competition": "sr:competition:238"},
+    "famalicao":                {"id": "sr:competitor:6116", "name": "FC Famalicao",             "competition": "sr:competition:238"},
+    "famalicão":                {"id": "sr:competitor:6116", "name": "FC Famalicao",             "competition": "sr:competition:238"},
+    "rio ave":                  {"id": "sr:competitor:3953", "name": "Rio Ave FC",               "competition": "sr:competition:238"},
+    "estoril":                  {"id": "sr:competitor:3954", "name": "GD Estoril Praia",         "competition": "sr:competition:238"},
+    "nacional":                 {"id": "sr:competitor:3955", "name": "CD Nacional",              "competition": "sr:competition:238"},
+    "santa clara":              {"id": "sr:competitor:3956", "name": "CD Santa Clara",           "competition": "sr:competition:238"},
+    "estrela amadora":          {"id": "sr:competitor:6119", "name": "CF Estrela Amadora",       "competition": "sr:competition:238"},
+    "gil vicente":              {"id": "sr:competitor:3952", "name": "Gil Vicente FC",           "competition": "sr:competition:238"},
+    # ── Premier League (sr:competition:17) ─────────────────────────────────
+    "manchester city":          {"id": "sr:competitor:2863", "name": "Manchester City FC",       "competition": "sr:competition:17"},
+    "man city":                 {"id": "sr:competitor:2863", "name": "Manchester City FC",       "competition": "sr:competition:17"},
+    "arsenal":                  {"id": "sr:competitor:2869", "name": "Arsenal FC",               "competition": "sr:competition:17"},
+    "liverpool":                {"id": "sr:competitor:2870", "name": "Liverpool FC",             "competition": "sr:competition:17"},
+    "manchester united":        {"id": "sr:competitor:2871", "name": "Manchester United FC",     "competition": "sr:competition:17"},
+    "man united":               {"id": "sr:competitor:2871", "name": "Manchester United FC",     "competition": "sr:competition:17"},
+    "man utd":                  {"id": "sr:competitor:2871", "name": "Manchester United FC",     "competition": "sr:competition:17"},
+    "chelsea":                  {"id": "sr:competitor:2872", "name": "Chelsea FC",               "competition": "sr:competition:17"},
+    "tottenham":                {"id": "sr:competitor:2874", "name": "Tottenham Hotspur",        "competition": "sr:competition:17"},
+    "spurs":                    {"id": "sr:competitor:2874", "name": "Tottenham Hotspur",        "competition": "sr:competition:17"},
+    "newcastle":                {"id": "sr:competitor:2875", "name": "Newcastle United FC",      "competition": "sr:competition:17"},
+    "aston villa":              {"id": "sr:competitor:2873", "name": "Aston Villa FC",           "competition": "sr:competition:17"},
+    "west ham":                 {"id": "sr:competitor:2876", "name": "West Ham United FC",       "competition": "sr:competition:17"},
+    "brighton":                 {"id": "sr:competitor:5981", "name": "Brighton & Hove Albion",   "competition": "sr:competition:17"},
+    "brentford":                {"id": "sr:competitor:5985", "name": "Brentford FC",             "competition": "sr:competition:17"},
+    "fulham":                   {"id": "sr:competitor:5986", "name": "Fulham FC",                "competition": "sr:competition:17"},
+    "crystal palace":           {"id": "sr:competitor:2877", "name": "Crystal Palace FC",        "competition": "sr:competition:17"},
+    "wolves":                   {"id": "sr:competitor:2878", "name": "Wolverhampton Wanderers",  "competition": "sr:competition:17"},
+    "wolverhampton":            {"id": "sr:competitor:2878", "name": "Wolverhampton Wanderers",  "competition": "sr:competition:17"},
+    "everton":                  {"id": "sr:competitor:2879", "name": "Everton FC",               "competition": "sr:competition:17"},
+    "nottingham forest":        {"id": "sr:competitor:2880", "name": "Nottingham Forest FC",     "competition": "sr:competition:17"},
+    "bournemouth":              {"id": "sr:competitor:5990", "name": "AFC Bournemouth",          "competition": "sr:competition:17"},
+    "leicester":                {"id": "sr:competitor:2881", "name": "Leicester City FC",        "competition": "sr:competition:17"},
+    "ipswich":                  {"id": "sr:competitor:2882", "name": "Ipswich Town FC",          "competition": "sr:competition:17"},
+    "southampton":              {"id": "sr:competitor:2883", "name": "Southampton FC",           "competition": "sr:competition:17"},
+}
+
 # =======================
 # Funções utilitárias
 # =======================
@@ -817,22 +978,44 @@ def search_teams():
     if not name or not competition:
         return error_response("Parametros 'name' e 'competition' sao obrigatorios")
 
+    # 1. Consulta mapeamento estático primeiro (não depende do trial da Sportradar)
+    matches = []
+    for key, team_data in TEAMS_STATIC_LOOKUP.items():
+        if name in key or key in name:
+            if not competition or team_data["competition"] == competition:
+                matches.append({
+                    "time": team_data["name"],
+                    "time_id": team_data["id"],
+                    "posicao": None,
+                    "pontos": None,
+                    "competicao_id": team_data["competition"],
+                    "season_id": None,
+                    "fonte": "static"
+                })
+
+    if matches:
+        return jsonify({
+            "ok": True,
+            "query": name,
+            "competition": competition,
+            "season": season_urn,
+            "total": len(matches),
+            "times": matches
+        })
+
+    # 2. Fallback: busca na API Sportradar (competitors.json → standings.json)
     if not season_urn:
         season_urn, error = _get_current_season_urn(competition)
         if error:
             return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
 
-    # Tenta competitors.json (mais disponível no trial) antes de standings.json
     data, error = call_sportradar(
         f"/competitions/{competition}/seasons/{season_urn}/competitors.json"
     )
 
-    matches = []
-
     competitors_list = data.get("season_competitors") or data.get("competitors", []) if not error else []
     if competitors_list:
         for entry in competitors_list:
-            # season_competitors: [{competitor: {...}}] ou [{id, name, ...}]
             comp = entry.get("competitor", entry)
             team_name = comp.get("name", "")
             if name in team_name.lower() or team_name.lower() in name:
@@ -842,16 +1025,16 @@ def search_teams():
                     "posicao": None,
                     "pontos": None,
                     "competicao_id": competition,
-                    "season_id": season_urn
+                    "season_id": season_urn,
+                    "fonte": "api"
                 })
     else:
-        # Fallback: standings.json
         data2, error2 = call_sportradar(
             f"/competitions/{competition}/seasons/{season_urn}/standings.json"
         )
         if error2:
             return error_response(
-                f"Nao foi possivel buscar times para esta competicao. "
+                f"Time nao encontrado no mapeamento local e a API retornou erro. "
                 f"competitors: {error} | standings: {error2}", 500
             )
         for standing in data2.get("standings", []):
@@ -868,7 +1051,8 @@ def search_teams():
                             "posicao": entry.get("rank"),
                             "pontos": entry.get("points", 0),
                             "competicao_id": competition,
-                            "season_id": season_urn
+                            "season_id": season_urn,
+                            "fonte": "api"
                         })
 
     return jsonify({
