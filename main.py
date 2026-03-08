@@ -822,29 +822,54 @@ def search_teams():
         if error:
             return error_response(f"Nao foi possivel detectar a temporada: {error}", 500)
 
+    # Tenta competitors.json (mais disponível no trial) antes de standings.json
     data, error = call_sportradar(
-        f"/competitions/{competition}/seasons/{season_urn}/standings.json"
+        f"/competitions/{competition}/seasons/{season_urn}/competitors.json"
     )
-    if error:
-        return error_response(error, 500)
 
     matches = []
-    for standing in data.get("standings", []):
-        if standing.get("type") != "total":
-            continue
-        for group in standing.get("groups", []):
-            for entry in group.get("standings", []):
-                team = entry.get("team", {})
-                team_name = team.get("name", "")
-                if name in team_name.lower() or team_name.lower() in name:
-                    matches.append({
-                        "time": team_name,
-                        "time_id": team.get("id"),
-                        "posicao": entry.get("rank"),
-                        "pontos": entry.get("points", 0),
-                        "competicao_id": competition,
-                        "season_id": season_urn
-                    })
+
+    competitors_list = data.get("season_competitors") or data.get("competitors", []) if not error else []
+    if competitors_list:
+        for entry in competitors_list:
+            # season_competitors: [{competitor: {...}}] ou [{id, name, ...}]
+            comp = entry.get("competitor", entry)
+            team_name = comp.get("name", "")
+            if name in team_name.lower() or team_name.lower() in name:
+                matches.append({
+                    "time": team_name,
+                    "time_id": comp.get("id"),
+                    "posicao": None,
+                    "pontos": None,
+                    "competicao_id": competition,
+                    "season_id": season_urn
+                })
+    else:
+        # Fallback: standings.json
+        data2, error2 = call_sportradar(
+            f"/competitions/{competition}/seasons/{season_urn}/standings.json"
+        )
+        if error2:
+            return error_response(
+                f"Nao foi possivel buscar times para esta competicao. "
+                f"competitors: {error} | standings: {error2}", 500
+            )
+        for standing in data2.get("standings", []):
+            if standing.get("type") != "total":
+                continue
+            for group in standing.get("groups", []):
+                for entry in group.get("standings", []):
+                    team = entry.get("team", {})
+                    team_name = team.get("name", "")
+                    if name in team_name.lower() or team_name.lower() in name:
+                        matches.append({
+                            "time": team_name,
+                            "time_id": team.get("id"),
+                            "posicao": entry.get("rank"),
+                            "pontos": entry.get("points", 0),
+                            "competicao_id": competition,
+                            "season_id": season_urn
+                        })
 
     return jsonify({
         "ok": True,
