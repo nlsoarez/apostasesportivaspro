@@ -34,7 +34,7 @@ info:
     url: https://github.com/nlsoarez/apostasesportivaspro
 
 servers:
-  - url: https://apostasesportivas.vercel.app
+  - url: https://apostasesportivaspro.vercel.app
     description: Servidor de Produção (Vercel)
 
 tags:

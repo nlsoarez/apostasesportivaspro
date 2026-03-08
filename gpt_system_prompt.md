@@ -55,6 +55,6 @@ Para cada jogo analisado, apresente:
 
 ## Dados da API
 
-- Base URL: https://apostasesportivas.vercel.app
+- Base URL: https://apostasesportivaspro.vercel.app
 - Endpoints principais: `/fixtures`, `/analysis/complete`, `/health`
 - Os IDs retornados por `getFixtures` são os únicos válidos — nunca invente IDs
